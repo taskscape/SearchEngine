@@ -1,1 +1,143 @@
-# SearchEngine
+# Search Engine
+*(SearchEngineAgents + SearchEngineServer)*  
+
+> **TL;DR**  
+> *Agents* = local crawlers that extract text + thumbnails from files & e-mails and send the results to a server.  
+> *Server* = thin ASP .NET 9 Web API that buffers/batches the incoming indices and persists them into **Weaviate**, then exposes a `/search` endpoint.  
+
+---
+
+## 1 • What problems does this solve?  
+
+1. **Desktop/LAN content discovery** – index PDFs, Word docs, plain-text files and IMAP mailboxes you own.  
+2. **Central search API** – a small server you can run on your laptop, NAS, Raspberry Pi or cloud VM.  
+3. **Semantic search** – delegated to Weaviate’s vector engine with optional cross-encoder re-ranking.  
+
+---
+
+## 2 • Agents (SearchEngineAgents)
+Currently there are agents that support these data sources:
+- PDF 
+- Word
+- Plain text
+- E-mail
+
+### Configuration (SearchEngineAgents/appsettings.json)
+```jsonc
+{
+  "EmailSettings": {
+    "ImapHost":  "imap.example.com",
+    "ImapPort":  993,
+    "UseSsl":    true,
+    "Username":  "me@example.com",
+    "Password":  "••••••"
+  },
+  "AgentDelaysSeconds": {
+    "Files":  20,
+    "Email": 300
+  },
+  "ServerAddress": "http://localhost:5000", // your SearchEngineServer endpoint
+  "IncludedPaths": {
+    "Paths": [ "C:\\Docs", "D:\\KnowledgeBase" ]
+  },
+  "ScanExclusions": {
+    "Paths": [ "C:\\Docs\\Private\\", "C:\\Windows" ],
+    "FolderNames": [ "node_modules", ".git" ]
+  }
+}
+```
+
+## 3 • Server (SearchEngineServer)
+
+* Minimal-API project (`dotnet run`)  
+* Accepts `/upload` & `/delete` (see above)  
+* Buffers incoming indices in an in-memory **Channel** (`IndexChannelQueue`)  
+* Background service (`IndexBatchingWorker`) flushes batches (default 64) every *n* seconds (default 3 s)  
+* Storage backend = **Weaviate** (self-hosted Docker or Weaviate Cloud)
+
+### Endpoints
+
+| Verb  | Route                               | Purpose                                                         |
+|-------|-------------------------------------|-----------------------------------------------------------------|
+| `POST`| `/upload`                           | Accept a single `IndexData` record; returns **202 Accepted**     |
+| `POST`| `/delete?uid=GUID`                  | Delete one record by uid                                        |
+| `HEAD`| `/doc/{uid}`                        | Existence probe used by agents to skip re-uploads               |
+| `GET` | `/search/{query}?limit=10`          | Returns semantic matches ordered by `rerank.score`              |
+
+### Configuration (`SearchEngineServer/appsettings.json`)
+
+```jsonc
+{
+  "Weaviate": {
+    "Endpoint": "http://localhost:8080/v1",
+    "ApiKey":  ""
+  },
+  "Batching": {
+    "FlushSeconds": 3,
+    "MaxBatchSize": 64
+  }
+}
+```
+The server auto-creates a Weaviate class Index_data and Email_data when needed.
+
+## 4 • Prerequisites
+
+- .NET 9 SDK
+- Docker for Weaviate (optional if using Weaviate Cloud)
+
+Sample `docker-compose.yml` file for self hosting with CUDA support:
+```yaml
+---
+services:
+  weaviate:
+    command:
+    - --host
+    - 0.0.0.0
+    - --port
+    - '8080'
+    - --scheme
+    - http
+    image: cr.weaviate.io/semitechnologies/weaviate:1.30.0
+    ports:
+    - 8080:8080
+    - 50051:50051
+    volumes:
+    - weaviate_data:/var/lib/weaviate
+    restart: on-failure:0
+    environment:
+      TRANSFORMERS_INFERENCE_API: 'http://t2v-transformers:8080'
+      RERANKER_INFERENCE_API: 'http://reranker-transformers:8080'
+      QUERY_DEFAULTS_LIMIT: 25
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'true'
+      PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
+      DEFAULT_VECTORIZER_MODULE: 'text2vec-transformers'
+      ENABLE_MODULES: 'text2vec-transformers,reranker-transformers'
+      CLUSTER_HOSTNAME: 'node1'
+  t2v-transformers:
+    image: cr.weaviate.io/semitechnologies/transformers-inference:sentence-transformers-multi-qa-MiniLM-L6-cos-v1
+    environment:
+      ENABLE_CUDA: '1'
+      NVIDIA_VISIBLE_DEVICES: 'all'
+    deploy:
+      resources:
+        reservations:
+          devices:
+          - capabilities: 
+            - 'gpu'
+  reranker-transformers:
+    image: cr.weaviate.io/semitechnologies/reranker-transformers:cross-encoder-ms-marco-MiniLM-L-6-v2
+    environment:
+      ENABLE_CUDA: '1'
+      NVIDIA_VISIBLE_DEVICES: 'all'
+    deploy:
+      resources:
+        reservations:
+          devices:
+          - capabilities:
+            - 'gpu'
+volumes:
+  weaviate_data:
+...
+``` 
+You can customize your own compose file [here](https://weaviate.io/developers/weaviate/installation/docker-compose#configurator)
+
