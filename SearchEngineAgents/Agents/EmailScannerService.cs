@@ -32,6 +32,11 @@ public class EmailScannerService(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        if (!_settings.Enabled)
+        {
+            logger.LogInformation("EmailScannerService is disabled.");
+            return;
+        }
         while (!stoppingToken.IsCancellationRequested)
         {
             logger.LogInformation("Connecting to IMAP {Host}:{Port} (SSL={UseSsl})", _settings.ImapHost, _settings.ImapPort, _settings.UseSsl);
