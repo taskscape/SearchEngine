@@ -1,14 +1,13 @@
-﻿using System.Text;
+﻿using System.Reflection;
+using System.Text;
 using SearchEngineAgents.Agents;
 using SearchEngineAgents.Settings;
 using SearchEngineAgents.State;
 
 Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 IHost host = Host.CreateDefaultBuilder(args)
-    .ConfigureAppConfiguration((ctx, cfg) =>
-    {
-        cfg.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
-    })
+    .UseWindowsService()
+    .UseContentRoot(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!)
     .ConfigureServices((ctx, services) =>
     {
         services.AddHttpClient();
