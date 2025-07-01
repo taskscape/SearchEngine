@@ -7,8 +7,7 @@ public sealed class IndexChannelQueue : IIndexQueue
 {
     private readonly Channel<IndexData> _indexChannel;
     private readonly Channel<EmailData> _emailChannel;
-
-    //public ChannelReader<IndexData> Reader => _indexChannel.Reader;
+    
     public ChannelReader<IndexData> IndexReader  => _indexChannel.Reader;
     public ChannelReader<EmailData> EmailReader  => _emailChannel.Reader;
 

@@ -26,6 +26,7 @@ Currently there are agents that support these data sources:
 ```jsonc
 {
   "EmailSettings": {
+    "Enabled":   true,
     "ImapHost":  "imap.example.com",
     "ImapPort":  993,
     "UseSsl":    true,
@@ -50,16 +51,17 @@ Currently there are agents that support these data sources:
 ## 3 • Server (SearchEngineServer)
 
 * Minimal-API project (`dotnet run`)  
-* Accepts `/upload` & `/delete` (see above)  
+* Accepts `/upload` & `/delete` 
 * Buffers incoming indices in an in-memory **Channel** (`IndexChannelQueue`)  
-* Background service (`IndexBatchingWorker`) flushes batches (default 64) every *n* seconds (default 3 s)  
+* Background services (`IndexBatchingWorker` and `EmailBatchingWorker`) flush batches (default 64) every *n* seconds (default 3 s)  
 * Storage backend = **Weaviate** (self-hosted Docker or Weaviate Cloud)
 
 ### Endpoints
 
 | Verb  | Route                               | Purpose                                                         |
 |-------|-------------------------------------|-----------------------------------------------------------------|
-| `POST`| `/upload`                           | Accept a single `IndexData` record; returns **202 Accepted**     |
+| `POST`| `/upload`                           | Accept a single `IndexData` record; returns **202 Accepted**    |
+| `POST`| `/upload-email`                     | Accept a single `EmailData` record; returns **202 Accepted**    |
 | `POST`| `/delete?uid=GUID`                  | Delete one record by uid                                        |
 | `HEAD`| `/doc/{uid}`                        | Existence probe used by agents to skip re-uploads               |
 | `GET` | `/search/{query}?limit=10`          | Returns semantic matches ordered by `rerank.score`              |
@@ -141,3 +143,27 @@ volumes:
 ``` 
 You can customize your own compose file [here](https://weaviate.io/developers/weaviate/installation/docker-compose#configurator)
 
+## 5 • Installation
+Here are the installation steps necessary to set up the SearchEngine. Please do them in the same order they are written in below.
+
+Preparation:
+1. Download the Agent and Server files from the latest [release](https://github.com/taskscape/SearchEngine/releases) from GitHub.
+2. Unpack them into separate folders.
+
+Weaviate (local with Docker):
+1. Create your docker-compose file with the configurator linked above (adjust the ports if needed manually).
+2. Open command prompt and input `docker compose up -d`.
+3. Wait until the process finishes pulling necessary data.
+
+Server:
+1. After unpacking, adjust the settings in `appsettings.json` for your Weaviate instance.
+2. Open IIS (Internet Information Services) Manager and:
+- Right-click your machine in the `Connections` tab.
+- Press `Add Website...`.
+- Specify the name (eg. 'SearchEngineServer'), physical path to where you extracted the files and port on which you want to run it.
+- Press `OK` and start the site if it hasn't started.
+
+Agents:
+1. After unpacking, adjust the settings in `appsettings.json` for your server instance, email settings and folders to watch and ignore.
+2. Open command prompt as admin and create a service: `sc create SearchEngineAgents binPath="PATH_TO_AGENTS_EXE"` (Replace `PATH_TO_AGENTS_EXE` with your actual path)
+3. Open up Services and start your newly created service.
