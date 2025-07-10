@@ -1,4 +1,5 @@
-﻿using SearchEngineServer;
+﻿using Microsoft.AspNetCore.Mvc.RazorPages;
+using SearchEngineServer;
 using SearchEngineServer.Models;
 using WeaviateNET;
 using Results = Microsoft.AspNetCore.Http.Results;
@@ -6,6 +7,7 @@ using Results = Microsoft.AspNetCore.Http.Results;
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddCors();
 
 builder.Services.AddSingleton<IIndexQueue, IndexChannelQueue>();
 builder.Services.AddSingleton<IDatabaseRepository, WeaviateRepository>();
@@ -18,10 +20,11 @@ WebApplication app = builder.Build();
 await EnsureWeaviateSchemaAsync(app.Services);
 app.UseSwagger();
 app.UseSwaggerUI();
+app.UseCors(p => p.WithOrigins("http://localhost:5100").AllowAnyMethod().AllowAnyHeader());
 
-app.MapGet("/search/{query}", async (string query, int limit, IDatabaseRepository repository) =>
+app.MapGet("/search/{query}", async (string query, int hitsPerPage, IDatabaseRepository repository, int page = 0) =>
     {
-        IEnumerable<SearchHit> results = await repository.FindMatches(query, limit);
+        IEnumerable<SearchHit> results = await repository.FindMatches(query, hitsPerPage, page);
         return Results.Ok(new { Results = results });
     }
 );

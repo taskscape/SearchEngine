@@ -1,0 +1,25 @@
+﻿@inject NavigationManager Navigation
+
+<form class="search-form" @onsubmit="OnSubmit">
+    <input @bind="_query"
+           @bind:event="oninput"
+           placeholder="Search…"
+           class="search-input" />
+
+    <button type="submit" class="search-button">Search</button>
+</form>
+
+@code {
+    [Parameter] public string? InitialQuery { get; set; }
+    private string _query = string.Empty;
+
+    protected override void OnParametersSet() => _query = InitialQuery ?? _query;
+
+    private void OnSubmit() => Go();
+
+    private void Go()
+    {
+        if (!string.IsNullOrWhiteSpace(_query))
+            Navigation.NavigateTo($"/search?q={Uri.EscapeDataString(_query)}");
+    }
+}

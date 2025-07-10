@@ -4,7 +4,7 @@ namespace SearchEngineServer;
 
 public interface IDatabaseRepository
 {
-    Task<IEnumerable<SearchHit>> FindMatches(string query, int limit);
+    Task<IEnumerable<SearchHit>> FindMatches(string query, int limit, int page);
     Task<bool> AddIndex(IndexData index);
     Task<bool> DeleteByUidAsync(Guid uid, string? tenant = null, bool treat404AsSuccess = false);
     Task<bool> BatchAddIndexesAsync(IEnumerable<IndexData> items, CancellationToken cancellation);

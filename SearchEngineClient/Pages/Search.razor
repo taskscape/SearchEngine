@@ -1,0 +1,193 @@
+﻿@page "/search"
+@using System.Text.RegularExpressions
+@using System.Linq
+@using SearchEngineClient.Shared
+
+@using SearchEngineClient.Models
+@layout MainLayout
+@implements IDisposable
+@inject NavigationManager Nav
+@inject HttpClient Http
+@inject IJSRuntime JS
+
+<div class="hits">
+    @if (!string.IsNullOrEmpty(_error))
+    {
+        <p class="error">@_error</p>
+    }
+    else if (string.IsNullOrWhiteSpace(_query))
+    {
+        <p>Please enter a query.</p>
+    }
+    else if (_isLoading)
+    {
+        <p>Loading…</p>
+    }
+    else if (_hits.Count == 0)
+    {
+        <p>No results for <strong>@_query</strong>.</p>
+        @if (_currentPage > 1)
+        {
+            <div class="pager">
+                <button @onclick="PrevPage">Previous</button>
+                <span>Page @_currentPage</span>
+                <button disabled>Next</button>
+            </div>
+        }
+    }
+    else
+    {
+        @foreach (SearchHit hit in _hits)
+        {
+            <div class="hit-card">
+                @if (string.IsNullOrWhiteSpace(hit.PreviewIcon))
+                {
+                    <div class="no-icon"><strong>No&nbsp;Icon</strong></div>
+                }
+                else
+                {
+                    <img src="@GetDataUri(hit.PreviewIcon)" alt="icon" class="icon" />
+                }
+                <div class="hit-body">
+                    <h3>@Highlight(hit.Title)</h3>
+                    @if (!string.IsNullOrWhiteSpace(hit.Content))
+                    {
+                        <p class="snippet">@Highlight(hit.Content ?? string.Empty)</p>
+                    }
+                    @if (hit.Timestamp is not null)
+                    {
+                        <small>@hit.Timestamp.Value.ToLocalTime().ToString("g")</small>
+                    }
+                </div>
+            </div>
+        }
+
+        <div class="pager" hidden="@(_currentPage == 1 && !_hasMore)">
+            <button @onclick="PrevPage" disabled="@(_currentPage == 1)">Previous</button>
+            <span>Page @_currentPage</span>
+            <button @onclick="NextPage" disabled="@(!_hasMore)">Next</button>
+        </div>
+    }
+</div>
+
+@code {
+    private string? _query;
+    private readonly List<SearchHit> _hits = new();
+    private const int PageSize = 10;
+
+    private bool _isLoading;
+    private string? _error;
+
+    private int _currentPage = 1;
+    private bool _hasMore;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Nav.LocationChanged += OnLocationChanged;
+        await SyncWithUriAsync(firstLoad: true);
+    }
+
+    private async void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+        => await SyncWithUriAsync();
+
+    private async Task SyncWithUriAsync(bool firstLoad = false)
+    {
+        string? q = System.Web.HttpUtility.ParseQueryString(Nav.ToAbsoluteUri(Nav.Uri).Query).Get("q");
+        if (q != _query || firstLoad)
+        {
+            _query = q;
+            _currentPage = 1;
+            await PerformSearchAsync();
+            StateHasChanged();
+        }
+    }
+
+    private async Task PerformSearchAsync()
+    {
+        _hits.Clear();
+        _error = null;
+        _hasMore = false;
+        if (string.IsNullOrWhiteSpace(_query)) return;
+
+        _isLoading = true;
+        try
+        {
+            string endpoint = $"search/{Uri.EscapeDataString(_query)}?hitsPerPage={PageSize}&page={_currentPage - 1}";
+            using HttpResponseMessage response = await Http.GetAsync(endpoint, HttpCompletionOption.ResponseHeadersRead);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _error = $"Server returned {(int)response.StatusCode} {response.ReasonPhrase}.";
+                return;
+            }
+
+            if (!(response.Content.Headers.ContentType?.MediaType?.Contains("json") ?? false))
+            {
+                _error = "Unexpected response format (not JSON).";
+                return;
+            }
+
+            SearchResponse? resp = await response.Content.ReadFromJsonAsync<SearchResponse>();
+            if (resp?.Results is not null)
+            {
+                _hits.AddRange(resp.Results.OrderByDescending(h => h.Score));
+                _hasMore = _hits.Count == PageSize;
+            }
+        }
+        catch (HttpRequestException ex)
+        {
+            _error = $"Request error: {ex.Message}";
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            _error = "Server returned invalid JSON.";
+        }
+        catch (Exception ex)
+        {
+            _error = $"Unexpected error: {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private static string GetDataUri(string base64) => 
+        string.IsNullOrWhiteSpace(base64) ? string.Empty : $"data:image/png;base64,{base64}";
+
+    private MarkupString Highlight(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text) || string.IsNullOrWhiteSpace(_query))
+            return (MarkupString)(text ?? string.Empty);
+
+        string[] words = _query.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (words.Length == 0) return (MarkupString)text!;
+
+        string pattern = string.Join("|", words.Select(Regex.Escape));
+        string highlighted = Regex.Replace(text!, pattern, m => $"<mark>{m.Value}</mark>", RegexOptions.IgnoreCase);
+        return (MarkupString)highlighted;
+    }
+
+    private async Task NextPage()
+    {
+        if (_hasMore)
+        {
+            _currentPage++;
+            await PerformSearchAsync();
+            await ScrollTopAsync();
+        }
+    }
+    private async Task PrevPage()
+    {
+        if (_currentPage > 1)
+        {
+            _currentPage--;
+            await PerformSearchAsync();
+            await ScrollTopAsync();
+        }
+    }
+
+    private async Task ScrollTopAsync() => await JS.InvokeVoidAsync("window.scrollTo", 0, 0);
+
+    public void Dispose() => Nav.LocationChanged -= OnLocationChanged;
+}

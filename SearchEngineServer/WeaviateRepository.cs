@@ -20,76 +20,77 @@ public class WeaviateRepository(ILogger<WeaviateRepository> logger, IConfigurati
         DefaultRequestVersion = HttpVersion.Version11
     };
 
-    public async Task<IEnumerable<SearchHit>> FindMatches(string query, int limit)
+    public async Task<IEnumerable<SearchHit>> FindMatches(
+        string query,
+        int limit,
+        int offset = 0)
     {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(limit);
+        ArgumentOutOfRangeException.ThrowIfNegative(offset);
+
         WeaviateDB? weaviate = await GetWeaviateDbAsync();
         if (weaviate is null)
         {
             logger.LogError("Weaviate endpoint or API key is missing");
-            return [];
+            return Array.Empty<SearchHit>();
         }
-        
+        int hitsToSkip = offset * limit;
+
         string gql = $$"""
-            {
-              Get {
-                Index_data (
-                  limit: {{limit}}
-                  nearText: { concepts: [ "{{query}}" ] }
-                ){
-                  filePath
-                  content
-                  created
-                  uid
-                  previewIcon
-                  _additional { rerank(property:"content", query:"{{query}}"){ score } }
-                }
-                Email_data (
-                  limit: {{limit}}
-                  nearText: { concepts: [ "{{query}}" ] }
-                ){
-                  subject
-                  body
-                  sent
-                  uid
-                  previewIcon
-                  _additional { rerank(property:"body", query:"{{query}}"){ score } }
-                }
-              }
-            }
-            """;
+                       {
+                         Get {
+                           Index_data (
+                             limit:  50
+                             nearText: { concepts: [ "{{query}}" ] }
+                           ){
+                             filePath content created uid previewIcon
+                             _additional { rerank(property:"content", query:"{{query}}"){ score } }
+                           }
+                           Email_data (
+                             limit:  50
+                             nearText: { concepts: [ "{{query}}" ] }
+                           ){
+                             subject body sent uid previewIcon
+                             _additional { rerank(property:"body", query:"{{query}}"){ score } }
+                           }
+                         }
+                       }
+                       """;
 
         GraphQLResponse r = await weaviate.Schema.RawQuery(new GraphQLQuery { Query = gql });
 
         List<SearchHit> hits = [];
-        
+
         foreach (JToken t in (JArray?)r.Data?["Get"]?["Index_data"] ?? [])
         {
             hits.Add(new SearchHit(
-                Uid:   Guid.Parse((string?)t["uid"] ?? Guid.Empty.ToString()),
-                Title: (string?)t["filePath"] ?? string.Empty,
-                Content: (string?)t["content"] ?? string.Empty,
-                Timestamp: t.Value<DateTime?>("created"),
-                Score: (float?)t.SelectToken("_additional.rerank[0].score") ?? 0,
+                Uid:         Guid.Parse((string?)t["uid"] ?? Guid.Empty.ToString()),
+                Title:       (string?)t["filePath"] ?? string.Empty,
+                Content:     CropWithEllipsis(t["content"]?.ToString()),
+                Timestamp:   t.Value<DateTime?>("created"),
+                Score:       (float?)t.SelectToken("_additional.rerank[0].score") ?? 0,
                 PreviewIcon: (string?)t["previewIcon"] ?? string.Empty,
-                Source: SearchSource.File));
+                Source:      SearchSource.File));
         }
-        
+
         foreach (JToken t in (JArray?)r.Data?["Get"]?["Email_data"] ?? [])
         {
             hits.Add(new SearchHit(
-                Uid:   Guid.Parse((string?)t["uid"] ?? Guid.Empty.ToString()),
-                Title: (string?)t["subject"] ?? string.Empty,
-                Content: (string?)t["body"] ?? string.Empty,
-                Timestamp: t.Value<DateTime?>("sent"),
-                Score: (float?)t.SelectToken("_additional.rerank[0].score") ?? 0,
+                Uid:         Guid.Parse((string?)t["uid"] ?? Guid.Empty.ToString()),
+                Title:       (string?)t["subject"] ?? string.Empty,
+                Content:     CropWithEllipsis(t["body"]?.ToString()),
+                Timestamp:   t.Value<DateTime?>("sent"),
+                Score:       (float?)t.SelectToken("_additional.rerank[0].score") ?? 0,
                 PreviewIcon: (string?)t["previewIcon"] ?? string.Empty,
-                Source: SearchSource.Email));
+                Source:      SearchSource.Email));
         }
         
-        return hits.OrderByDescending(h => h.Score)
-                   .Take(limit)
-                   .ToList()
-                   .AsReadOnly();
+        return hits
+            .OrderByDescending(h => h.Score)
+            .Skip(hitsToSkip)
+            .Take(limit)
+            .ToList()
+            .AsReadOnly();
     }
 
     public async Task<bool> AddIndex(IndexData index)
@@ -478,5 +479,18 @@ public class WeaviateRepository(ILogger<WeaviateRepository> logger, IConfigurati
 
         await weaviate.Schema.Update();
         return weaviate;
+    }
+    
+    private static string CropWithEllipsis(string? input, int maxLength = 400)
+    {
+        const string ellipsis = "...";
+
+        if (string.IsNullOrEmpty(input) || input!.Length <= maxLength)
+        {
+            return input ?? string.Empty;
+        }
+        
+        int sliceLength = Math.Max(0, maxLength - ellipsis.Length);
+        return string.Concat(input.AsSpan(0, sliceLength), ellipsis);
     }
 }
