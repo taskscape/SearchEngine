@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc.RazorPages;
+﻿using Microsoft.Extensions.Primitives;
 using SearchEngineServer;
 using SearchEngineServer.Models;
 using WeaviateNET;
@@ -8,6 +8,12 @@ WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddCors();
+builder.Services.AddHttpClient("AgentsAPI", (sp, client) =>
+{
+    IConfiguration cfg = sp.GetRequiredService<IConfiguration>();
+    client.BaseAddress = new Uri(cfg["AgentsAPI:BaseUrl"]!);
+    client.Timeout = TimeSpan.FromMinutes(10);
+});
 
 builder.Services.AddSingleton<IIndexQueue, IndexChannelQueue>();
 builder.Services.AddSingleton<IDatabaseRepository, WeaviateRepository>();
@@ -20,7 +26,7 @@ WebApplication app = builder.Build();
 await EnsureWeaviateSchemaAsync(app.Services);
 app.UseSwagger();
 app.UseSwaggerUI();
-app.UseCors(p => p.WithOrigins("http://localhost:5100").AllowAnyMethod().AllowAnyHeader());
+app.UseCors(p => p.WithOrigins(builder.Configuration["Client:BaseUrl"] ?? string.Empty).AllowAnyMethod().AllowAnyHeader());
 
 app.MapGet("/search/{query}", async (string query, int hitsPerPage, IDatabaseRepository repository, int page = 0) =>
     {
@@ -80,6 +86,45 @@ app.MapMethods("/doc/{uid:guid}", ["HEAD"], async (Guid uid, IDatabaseRepository
     return exists
         ? Results.Ok()
         : Results.NotFound();
+});
+
+app.MapGet("/download/{*path}", async (
+    string path,
+    IHttpClientFactory http,
+    HttpContext ctx,
+    CancellationToken ct) =>
+{
+    if (string.IsNullOrWhiteSpace(path))
+        return Results.BadRequest("Missing path.");
+    
+    HttpRequestMessage req = new(HttpMethod.Get, $"download/{Uri.EscapeDataString(path)}");
+    
+    if (ctx.Request.Headers.TryGetValue("Range", out StringValues range))
+    {
+        req.Headers.TryAddWithoutValidation("Range", (string)range);
+    }
+    
+    HttpClient agent = http.CreateClient("AgentsAPI");
+    HttpResponseMessage upstream = await agent.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
+
+    if (!upstream.IsSuccessStatusCode)
+    {
+        return Results.StatusCode((int)upstream.StatusCode);
+    }
+    
+    ctx.Response.RegisterForDispose(upstream);
+    Stream body = await upstream.Content.ReadAsStreamAsync(ct);
+    ctx.Response.RegisterForDispose(body);
+    
+    string fileName = Path.GetFileName(Uri.UnescapeDataString(path));
+    string contentType = upstream.Content.Headers.ContentType?.ToString() ?? "application/octet-stream";
+
+    if (upstream.Content.Headers.ContentLength is long len)
+    {
+        ctx.Response.ContentLength = len;
+    }
+    
+    return Results.File(body, contentType, fileName, enableRangeProcessing: true);
 });
 
 app.Run();

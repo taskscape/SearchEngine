@@ -1,4 +1,5 @@
 ﻿using LiteDB;
+using SearchEngineAgents.Models;
 
 namespace SearchEngineAgents.State;
 
@@ -20,8 +21,13 @@ public sealed class ScanState : IDisposable
                Math.Abs((stored.Value - currentMTimeUtc).TotalMilliseconds) < 1;
     }
 
-    public void Touch(Guid id, DateTimeOffset mTimeUtc)
-        => _stamps.Upsert(new FileStamp { Id = id, LastWriteUtc = mTimeUtc });
+    public void Touch(Guid id, DateTimeOffset mTimeUtc, string path)
+        => _stamps.Upsert(new FileStamp
+        {
+            Id           = id,
+            LastWriteUtc = mTimeUtc,
+            Path         = path
+        });
 
     public IEnumerable<Guid> AllIds()
         => _stamps.Query()
@@ -31,10 +37,4 @@ public sealed class ScanState : IDisposable
     public void Delete(Guid id) => _stamps.Delete(id);
 
     public void Dispose() => _db.Dispose();
-
-    private class FileStamp
-    {
-        public Guid Id { get; set; }
-        public DateTimeOffset LastWriteUtc { get; set; }
-    }
 }

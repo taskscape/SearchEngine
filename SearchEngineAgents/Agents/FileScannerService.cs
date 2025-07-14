@@ -140,7 +140,7 @@ public class FileScannerService(
                         if (index is not null)
                         {
                             await SendIndexAsync(index, ct);
-                            _state.Touch(id, mUtc);
+                            _state.Touch(id, mUtc, file);
                             _seen.Add(id);
                         }
                     }

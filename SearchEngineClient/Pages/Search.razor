@@ -9,6 +9,7 @@
 @inject NavigationManager Nav
 @inject HttpClient Http
 @inject IJSRuntime JS
+@inject IConfiguration Configuration
 
 <div class="hits">
     @if (!string.IsNullOrEmpty(_error))
@@ -39,7 +40,7 @@
     {
         @foreach (SearchHit hit in _hits)
         {
-            <div class="hit-card">
+            <div class="hit-card" @onclick="() => DownloadHitAsync(hit)" style="cursor:pointer;" tabindex="0" role="button">
                 @if (string.IsNullOrWhiteSpace(hit.PreviewIcon))
                 {
                     <div class="no-icon"><strong>No&nbsp;Icon</strong></div>
@@ -71,6 +72,8 @@
 </div>
 
 @code {
+    private string DownloadApiBase => Configuration["ServerAddress"] + "/download/";
+
     private string? _query;
     private readonly List<SearchHit> _hits = new();
     private const int PageSize = 10;
@@ -152,8 +155,26 @@
         }
     }
 
-    private static string GetDataUri(string base64) => 
+    private static string GetDataUri(string base64) =>
         string.IsNullOrWhiteSpace(base64) ? string.Empty : $"data:image/png;base64,{base64}";
+
+    private async Task DownloadHitAsync(SearchHit hit)
+    {
+        if (hit is null || string.IsNullOrWhiteSpace(hit.Title)) return;
+
+        string url = $"{DownloadApiBase}{Uri.EscapeDataString(hit.Title)}";
+        string name = Path.GetFileName(hit.Title);
+
+        try
+        {
+            await JS.InvokeVoidAsync("fetchAndSave", url, name);
+        }
+        catch (JSException ex)
+        {
+            _error = $"Download failed: {ex.Message}";
+            StateHasChanged();
+        }
+    }
 
     private MarkupString Highlight(string? text)
     {
