@@ -18,4 +18,12 @@
       <ProjectReference Include="..\SearchEngineAgents\SearchEngineAgents.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+        <None Include="..\SearchEngineAgents\appsettings.json">
+            <Link>SearchEngineAgents\appsettings.json</Link>
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+        </None>
+    </ItemGroup>
+
 </Project>
