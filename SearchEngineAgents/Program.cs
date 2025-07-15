@@ -8,6 +8,18 @@ Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 IHost host = Host.CreateDefaultBuilder(args)
     .UseWindowsService()
     .UseContentRoot(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!)
+    .ConfigureAppConfiguration((context, config) =>
+    {
+        config.Sources.Clear();
+        string contentRoot = context.HostingEnvironment.ContentRootPath;
+        config.AddJsonFile(Path.Combine(contentRoot, "appsettings.json"), optional: false, reloadOnChange: true);
+        
+        config.AddEnvironmentVariables();
+        if (args != null)
+        {
+            config.AddCommandLine(args);
+        }
+    })
     .ConfigureServices((ctx, services) =>
     {
         services.AddHttpClient();

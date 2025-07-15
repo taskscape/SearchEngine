@@ -1,0 +1,6 @@
+﻿<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Publish SearchEngineAgents to folder" type="DotNetFolderPublish" factoryName="Publish to folder">
+    <riderPublish configuration="Release" delete_existing_files="true" platform="Any CPU" runtime="win-x64" self_contained="true" target_folder="$PROJECT_DIR$/bin/Release/net9.0/win-x64/publish" target_framework="net9.0" uuid_high="-1915961539615765167" uuid_low="-9141396471928538608" />
+    <method v="2" />
+  </configuration>
+</component>

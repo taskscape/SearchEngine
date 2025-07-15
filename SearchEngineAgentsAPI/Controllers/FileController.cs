@@ -1,6 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
-using SearchEngineAgents.Settings;
+using SearchEngineAgentsConfiguration;
 
 namespace SearchEngineAgentsAPI.Controllers;
 

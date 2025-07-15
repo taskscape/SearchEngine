@@ -15,15 +15,6 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\SearchEngineAgents\SearchEngineAgents.csproj" />
+      <ProjectReference Include="..\SearchEngineAgentsConfiguration\SearchEngineAgentsConfiguration.csproj" />
     </ItemGroup>
-
-    <ItemGroup>
-        <None Include="..\SearchEngineAgents\appsettings.json">
-            <Link>SearchEngineAgents\appsettings.json</Link>
-            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-            <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-        </None>
-    </ItemGroup>
-
 </Project>
