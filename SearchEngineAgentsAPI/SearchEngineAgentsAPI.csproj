@@ -17,4 +17,18 @@
     <ItemGroup>
       <ProjectReference Include="..\SearchEngineAgentsConfiguration\SearchEngineAgentsConfiguration.csproj" />
     </ItemGroup>
+
+    <Target Name="CopyConfigurationFiles" AfterTargets="Build">
+        <ItemGroup>
+            <ConfigFiles Include="$(MSBuildProjectDirectory)\..\SearchEngineAgentsConfiguration\appsettings*.json" />
+        </ItemGroup>
+        <Copy SourceFiles="@(ConfigFiles)" DestinationFolder="$(OutputPath)" OverwriteReadOnlyFiles="true" />
+    </Target>
+
+    <Target Name="CopyConfigurationFilesPublish" AfterTargets="Publish">
+        <ItemGroup>
+            <ConfigFilesPublish Include="$(MSBuildProjectDirectory)\..\SearchEngineAgentsConfiguration\appsettings*.json" />
+        </ItemGroup>
+        <Copy SourceFiles="@(ConfigFilesPublish)" DestinationFolder="$(PublishDir)" OverwriteReadOnlyFiles="true" />
+    </Target>
 </Project>
