@@ -1,9 +1,10 @@
-# Search Engine
-*(SearchEngineAgents + SearchEngineServer)*  
+# Search Engine  
 
 > **TL;DR**  
-> *Agents* = local crawlers that extract text + thumbnails from files & e-mails and send the results to a server.  
+> *Agents* = local crawlers that extract text + thumbnails from files & e-mails and send the results to a server.
+> *Agents API* = ASP .NET 9 Web API that allows monitored files to be downloaded, exposes a `/download` endpoint.  
 > *Server* = thin ASP .NET 9 Web API that buffers/batches the incoming indices and persists them into **Weaviate**, then exposes a `/search` endpoint.  
+> *Client* = Blazor web app that allows for easy search using the server API. Displays a neat list of search hits and allows for download of those files.
 
 ---
 
@@ -22,7 +23,9 @@ Currently there are agents that support these data sources:
 - Plain text
 - E-mail
 
-### Configuration (SearchEngineAgents/appsettings.json)
+### Configuration (SearchEngineAgents/appsettings.json and SearchEngineAgentsAPI/appsettings.json)
+Please keep `IncludedPaths` and `ScanExclusions` the same in both configs for proper functioning.
+
 ```jsonc
 {
   "EmailSettings": {
@@ -65,6 +68,7 @@ Currently there are agents that support these data sources:
 | `POST`| `/delete?uid=GUID`                  | Delete one record by uid                                        |
 | `HEAD`| `/doc/{uid}`                        | Existence probe used by agents to skip re-uploads               |
 | `GET` | `/search/{query}?limit=10`          | Returns semantic matches ordered by `rerank.score`              |
+| `GET` | `/download/{path}`                  | Downloads a file specified in `path` if monitored               |
 
 ### Configuration (`SearchEngineServer/appsettings.json`)
 
@@ -77,10 +81,18 @@ Currently there are agents that support these data sources:
   "Batching": {
     "FlushSeconds": 3,
     "MaxBatchSize": 64
+  },
+  "AgentsAPI":{
+    "BaseUrl": "http://localhost:5284"
+  },
+  "Client":
+  {
+    "BaseUrl": "http://localhost:5255"
   }
 }
 ```
 The server auto-creates a Weaviate class Index_data and Email_data when needed.
+Please set your base urls to your specific addresses for each instance.
 
 ## 4 • Prerequisites
 
@@ -155,15 +167,37 @@ Weaviate (local with Docker):
 2. Open command prompt and input `docker compose up -d`.
 3. Wait until the process finishes pulling necessary data.
 
+Client:
+1. Unpack the files into a folder.
+2. Open IIS (Internet Information Services) Manager and:
+- Right-click your machine in the `Connections` tab.
+- Press `Add Website...`.
+- Specify the name (eg. 'SearchEngineClient'), physical path to where you extracted the files and port on which you want to run it.
+- Press `OK` and don't start the site yet.
+
 Server:
-1. After unpacking, adjust the settings in `appsettings.json` for your Weaviate instance.
+1. Unpack the files into a folder.
 2. Open IIS (Internet Information Services) Manager and:
 - Right-click your machine in the `Connections` tab.
 - Press `Add Website...`.
 - Specify the name (eg. 'SearchEngineServer'), physical path to where you extracted the files and port on which you want to run it.
-- Press `OK` and start the site if it hasn't started.
+- Press `OK` and don't start the site yet.
 
 Agents:
 1. After unpacking, adjust the settings in `appsettings.json` for your server instance, email settings and folders to watch and ignore.
 2. Open command prompt as admin and create a service: `sc create SearchEngineAgents binPath="PATH_TO_AGENTS_EXE"` (Replace `PATH_TO_AGENTS_EXE` with your actual path)
-3. Open up Services and start your newly created service.
+
+Agents API:
+1. After unpacking, adjust the settings in `appsettings.json` to match your setting for the Agents instance.
+2. Open IIS (Internet Information Services) Manager and:
+- Right-click your machine in the `Connections` tab.
+- Press `Add Website...`.
+- Specify the name (eg. 'SearchEngineAgentsAPI'), physical path to where you extracted the files and port on which you want to run it.
+- Press `OK` and don't start the site yet.
+
+After that, please adjust `appsettings.json` in the Client and Server to match the set addresses.
+Then, please start in the given order:
+1. Server
+2. Agents
+3. Agents API
+4. Client
