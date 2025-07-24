@@ -14,7 +14,10 @@
 <div class="hits">
     @if (!string.IsNullOrEmpty(_error))
     {
-        <p class="error">@_error</p>
+        <div class="error" role="alert" aria-live="assertive">
+            <span class="error-icon" aria-hidden="true">⚠️</span>
+            <span class="error-text">@_error</span>
+        </div>
     }
     else if (string.IsNullOrWhiteSpace(_query))
     {
@@ -22,7 +25,7 @@
     }
     else if (_isLoading)
     {
-        <p>Loading…</p>
+    <div class="spinner" role="status" aria-label="Loading"></div>
     }
     else if (_hits.Count == 0)
     {
