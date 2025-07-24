@@ -27,29 +27,28 @@ public class FileController(ILogger<FileController> logger, IOptions<ScanInclusi
     {
         try
         { 
-            string full = Path.GetFullPath(path);
-            bool insideIncluded  = _monitored.Any(m => full.StartsWith(m, StringComparison.OrdinalIgnoreCase));
-            bool insideExclPath = _excludedPaths.Any(e => full.StartsWith(e, StringComparison.OrdinalIgnoreCase));
-            bool hasExclFolder = full.TrimEnd(Path.DirectorySeparatorChar)
+            bool insideIncluded  = _monitored.Any(m => path.StartsWith(m, StringComparison.OrdinalIgnoreCase));
+            bool insideExclPath = _excludedPaths.Any(e => path.StartsWith(e, StringComparison.OrdinalIgnoreCase));
+            bool hasExclFolder = path.TrimEnd(Path.DirectorySeparatorChar)
                 .Split(Path.DirectorySeparatorChar)
                 .Any(part => _excludedFolderNames.Contains(part));
 
             bool allowed = insideIncluded && !(insideExclPath || hasExclFolder);
             if (!allowed)
             {
-                logger.LogWarning("Blocked download of excluded file {FullPath}", full);
+                logger.LogWarning("Blocked download of excluded file {FullPath}", path);
                 return StatusCode(StatusCodes.Status403Forbidden, "This file is outside the monitored folders.");
             }
             
-            if (!System.IO.File.Exists(full))
+            if (!System.IO.File.Exists(path))
             {
-                logger.LogWarning("File {FullPath} does not exist.", full);
-                return NotFound($"File {full} does not exist.");
+                logger.LogWarning("File {FullPath} does not exist.", path);
+                return NotFound($"File {path} does not exist.");
             }
 
-            FileStream fileStream = new(full, FileMode.Open, FileAccess.Read, FileShare.Read);
-            string contentType = GetContentType(full);
-            string fileName = Path.GetFileName(full);
+            FileStream fileStream = new(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+            string contentType = GetContentType(path);
+            string fileName = Path.GetFileName(path);
 
             logger.LogInformation("Serving file {FileName}.", fileName);
             

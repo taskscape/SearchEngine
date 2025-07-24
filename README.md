@@ -98,6 +98,7 @@ Please set your base urls to your specific addresses for each instance.
 
 - .NET 9 SDK
 - Docker for Weaviate (optional if using Weaviate Cloud)
+- IIS URL Rewrite
 
 Sample `docker-compose.yml` file for self hosting with CUDA support:
 ```yaml

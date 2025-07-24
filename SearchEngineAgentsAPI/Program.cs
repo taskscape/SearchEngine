@@ -1,11 +1,24 @@
+using System.Reflection;
 using SearchEngineAgentsConfiguration;
 
-WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
+WebApplicationBuilder builder = WebApplication.CreateBuilder(new WebApplicationOptions
+{
+    Args = args,
+    ContentRootPath  = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!
+});
+string contentRoot = builder.Environment.ContentRootPath;
 
+builder.Configuration.AddJsonFile(
+    Path.Combine(contentRoot, "appsettings.json"),
+    optional: false,
+    reloadOnChange: true);
 builder.Services.AddControllers().AddNewtonsoftJson(); 
 builder.Services.AddLogging(logging => logging.AddConsole());
-builder.Services.Configure<ScanInclusions>(builder.Configuration.GetSection("IncludedPaths"));
-builder.Services.Configure<ScanExclusions>(builder.Configuration.GetSection("ScanExclusions"));
+builder.Services.AddOptions<ScanInclusions>()
+    .BindConfiguration("IncludedPaths");
+
+builder.Services.AddOptions<ScanExclusions>()
+    .BindConfiguration("ScanExclusions");
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
