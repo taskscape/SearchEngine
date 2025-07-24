@@ -1,6 +1,7 @@
 ﻿@page "/search"
 @using System.Text.RegularExpressions
 @using System.Linq
+@using System.Web
 @using SearchEngineClient.Shared
 
 @using SearchEngineClient.Models
@@ -165,7 +166,7 @@
     {
         if (hit is null || string.IsNullOrWhiteSpace(hit.Title)) return;
 
-        string url = $"{DownloadApiBase}{Uri.EscapeDataString(hit.Title)}";
+        string url = $"{DownloadApiBase}{HttpUtility.UrlPathEncode(hit.Title)}";
         string name = Path.GetFileName(hit.Title);
 
         try

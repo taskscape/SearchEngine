@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Primitives;
+﻿using System.Web;
+using Microsoft.Extensions.Primitives;
 using SearchEngineServer;
 using SearchEngineServer.Models;
 using WeaviateNET;
@@ -97,7 +98,7 @@ app.MapGet("/download/{*path}", async (
     if (string.IsNullOrWhiteSpace(path))
         return Results.BadRequest("Missing path.");
     
-    HttpRequestMessage req = new(HttpMethod.Get, $"download/{Uri.EscapeDataString(path)}");
+    HttpRequestMessage req = new(HttpMethod.Get, $"download/{HttpUtility.UrlEncode(path)}");
     
     if (ctx.Request.Headers.TryGetValue("Range", out StringValues range))
     {

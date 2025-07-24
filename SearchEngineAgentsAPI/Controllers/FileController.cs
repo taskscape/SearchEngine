@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using System.Web;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using SearchEngineAgentsConfiguration;
 
@@ -27,6 +28,7 @@ public class FileController(ILogger<FileController> logger, IOptions<ScanInclusi
     {
         try
         { 
+            path = CanonicalPath(HttpUtility.UrlDecode(path));
             bool insideIncluded  = _monitored.Any(m => path.StartsWith(m, StringComparison.OrdinalIgnoreCase));
             bool insideExclPath = _excludedPaths.Any(e => path.StartsWith(e, StringComparison.OrdinalIgnoreCase));
             bool hasExclFolder = path.TrimEnd(Path.DirectorySeparatorChar)
@@ -72,5 +74,11 @@ public class FileController(ILogger<FileController> logger, IOptions<ScanInclusi
             ".txt" => "text/plain",
             _ => "application/octet-stream"
         };
+    }
+    
+    private static string CanonicalPath(string p)
+    {
+        p = p.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);
+        return p.TrimEnd(Path.DirectorySeparatorChar);
     }
 }
