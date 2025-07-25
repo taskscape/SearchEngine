@@ -97,6 +97,7 @@ Please set your base urls to your specific addresses for each instance.
 ## 4 • Prerequisites
 
 - .NET 9 SDK
+- .NET Core Hosting Bundle 9
 - Docker for Weaviate (optional if using Weaviate Cloud)
 - IIS URL Rewrite
 
@@ -202,3 +203,25 @@ Then, please start in the given order:
 2. Agents
 3. Agents API
 4. Client
+
+
+## 6 • Development
+
+Publishing projects:
+- *Agents and AgentsAPI* - `dotnet publish --sc` in the SearchEngineAgents folder
+- *Server* - `dotnet publish --sc` in the SearchEngineServer folder  
+- *Client* - `dotnet publish` in the SearchEngineClient folder
+
+It is also necessary to add the following section inside `<system.webServer>` to AgentsAPI `web.config` for downloads to work reliably:
+```xml
+      <security>
+        <requestFiltering allowDoubleEscaping="true">
+          <requestLimits maxUrl="4096" maxQueryString="4096" />
+          <verbs allowUnlisted="true" />
+          <fileExtensions allowUnlisted="true" />
+          <hiddenSegments>
+            <clear />
+          </hiddenSegments>
+        </requestFiltering>
+      </security>
+```
