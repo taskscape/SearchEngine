@@ -75,7 +75,7 @@ Please keep `IncludedPaths` and `ScanExclusions` the same in both configs for pr
 ```jsonc
 {
   "Weaviate": {
-    "Endpoint": "http://localhost:8080/v1",
+    "Endpoint": "http://weaviate:8080/v1",
     "ApiKey":  ""
   },
   "Batching": {
@@ -83,11 +83,11 @@ Please keep `IncludedPaths` and `ScanExclusions` the same in both configs for pr
     "MaxBatchSize": 64
   },
   "AgentsAPI":{
-    "BaseUrl": "http://localhost:5284"
+    "BaseUrl": "http://host.docker.internal:5284"
   },
   "Client":
   {
-    "BaseUrl": "http://localhost:5255"
+    "BaseUrl": "http://localhost:7000"
   }
 }
 ```
@@ -105,20 +105,45 @@ Sample `docker-compose.yml` file for self hosting with CUDA support:
 ```yaml
 ---
 services:
+  server:
+    build:
+      context: ./SearchEngineServer
+    container_name: server
+    ports:
+      - "5000:5000"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: "http://0.0.0.0:5000"
+    depends_on:
+      weaviate:
+        condition: service_healthy
+    restart: on-failure
+
+  client:
+    build:
+      context: ./SearchEngineClient
+    container_name: client
+    depends_on:
+      server:
+        condition: service_started
+    ports:
+      - "7000:7000"
+    restart: on-failure
+
   weaviate:
     command:
-    - --host
-    - 0.0.0.0
-    - --port
-    - '8080'
-    - --scheme
-    - http
+      - --host
+      - 0.0.0.0
+      - --port
+      - '8080'
+      - --scheme
+      - http
     image: cr.weaviate.io/semitechnologies/weaviate:1.30.0
     ports:
-    - 8080:8080
-    - 50051:50051
+      - 8080:8080
+      - 50051:50051
     volumes:
-    - weaviate_data:/var/lib/weaviate
+      - weaviate_data:/var/lib/weaviate
     restart: on-failure:0
     environment:
       TRANSFORMERS_INFERENCE_API: 'http://t2v-transformers:8080'
@@ -129,6 +154,18 @@ services:
       DEFAULT_VECTORIZER_MODULE: 'text2vec-transformers'
       ENABLE_MODULES: 'text2vec-transformers,reranker-transformers'
       CLUSTER_HOSTNAME: 'node1'
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=3", "--spider", "http://localhost:8080/v1/.well-known/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    depends_on:
+      t2v-transformers:
+        condition: service_started
+      reranker-transformers:
+        condition: service_started
+
   t2v-transformers:
     image: cr.weaviate.io/semitechnologies/transformers-inference:sentence-transformers-multi-qa-MiniLM-L6-cos-v1
     environment:
@@ -138,8 +175,10 @@ services:
       resources:
         reservations:
           devices:
-          - capabilities: 
-            - 'gpu'
+            - capabilities:
+                - 'gpu'
+    restart: on-failure
+
   reranker-transformers:
     image: cr.weaviate.io/semitechnologies/reranker-transformers:cross-encoder-ms-marco-MiniLM-L-6-v2
     environment:
@@ -149,8 +188,10 @@ services:
       resources:
         reservations:
           devices:
-          - capabilities:
-            - 'gpu'
+            - capabilities:
+                - 'gpu'
+    restart: on-failure
+
 volumes:
   weaviate_data:
 ...
@@ -160,6 +201,7 @@ You can customize your own compose file [here](https://weaviate.io/developers/we
 ## 5 • Installation
 Here are the installation steps necessary to set up the SearchEngine. Please do them in the same order they are written in below.
 
+### Normal
 Preparation:
 1. Download the Agent and Server files from the latest [release](https://github.com/taskscape/SearchEngine/releases) from GitHub.
 2. Unpack them into separate folders.
@@ -204,12 +246,33 @@ Then, please start in the given order:
 3. Agents API
 4. Client
 
+### Dockerized
+Preparation:
+1. Download the latest [release](https://github.com/taskscape/SearchEngine/releases) from GitHub.
+2. Unpack Agents and AgentsAPI into separate folders.
+3. Unpack Client + Server combo into one folder.
+
+Client + Server + Weaviate:
+1. Run `create-images.bat`.
+2. Open command prompt and input `docker compose build`, followed by `docker compose up -d`.
+3. Wait until the process finishes pulling necessary data and everything starts.
+
+Agents:
+1. After unpacking, adjust the settings in `appsettings.json` for your server instance, email settings and folders to watch and ignore.
+2. Open command prompt as admin and create a service: `sc create SearchEngineAgents binPath="PATH_TO_AGENTS_EXE"` (Replace `PATH_TO_AGENTS_EXE` with your actual path)
+
+Agents API:
+1. After unpacking, adjust the settings in `appsettings.json` to match your setting for the Agents instance.
+2. Open IIS (Internet Information Services) Manager and:
+- Right-click your machine in the `Connections` tab.
+- Press `Add Website...`.
+- Specify the name (eg. 'SearchEngineAgentsAPI'), physical path to where you extracted the files and port on which you want to run it.
 
 ## 6 • Development
 
 Publishing projects:
 - *Agents and AgentsAPI* - `dotnet publish --sc` in the SearchEngineAgents folder
-- *Server* - `dotnet publish --sc` in the SearchEngineServer folder  
+- *Server* - `dotnet publish --sc` in the SearchEngineServer folder or `dotnet publish -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true` if to run in a container with Weaviate (linux based)
 - *Client* - `dotnet publish` in the SearchEngineClient folder
 
 It is also necessary to add the following section inside `<system.webServer>` to AgentsAPI `web.config` for downloads to work reliably:
@@ -225,3 +288,5 @@ It is also necessary to add the following section inside `<system.webServer>` to
         </requestFiltering>
       </security>
 ```
+
+Dockerfiles inside the repository are different from the release ones, repo are made to work from source code, release ones are made to work from just the release.
