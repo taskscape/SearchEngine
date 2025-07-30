@@ -5,6 +5,7 @@
 > *Agents API* = ASP .NET 9 Web API that allows monitored files to be downloaded, exposes a `/download` endpoint.  
 > *Server* = thin ASP .NET 9 Web API that buffers/batches the incoming indices and persists them into **Weaviate**, then exposes a `/search` endpoint.  
 > *Client* = Blazor web app that allows for easy search using the server API. Displays a neat list of search hits and allows for download of those files.
+> *MCP Server* = thin MCP server which allows for LLMs to also use search.
 
 ---
 
@@ -268,7 +269,11 @@ Agents API:
 - Press `Add Website...`.
 - Specify the name (eg. 'SearchEngineAgentsAPI'), physical path to where you extracted the files and port on which you want to run it.
 
-## 6 • Development
+## 6 • MCP Server
+There is an optional MCP Server included in the code and release. To use it, please add it according to your MCP host's configuration.
+The folder contains the main exe file which is the server, and `appsettings.json`, which point to the SearchEngineServer, please adjust according to your configuration.
+
+## 7 • Development
 
 Publishing projects:
 - *Agents and AgentsAPI* - `dotnet publish --sc` in the SearchEngineAgents folder
