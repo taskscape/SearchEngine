@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Hosting;
+﻿using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -10,6 +11,15 @@ HostApplicationBuilder builder = Host.CreateApplicationBuilder(new HostApplicati
     ContentRootPath = AppContext.BaseDirectory,
     Args = args
 });
+void AddJsonAt(string baseDir)
+{
+    if (string.IsNullOrWhiteSpace(baseDir)) return;
+    string main = Path.Combine(baseDir, "appsettings.json");
+    if (File.Exists(main)) builder.Configuration.AddJsonFile(main, optional: true, reloadOnChange: true);
+}
+AddJsonAt(AppContext.BaseDirectory);
+AddJsonAt(Directory.GetCurrentDirectory());
+
 builder.Services.Configure<SearchEngineServerOptions>(builder.Configuration.GetSection("SearchEngineServer"));
 builder.Logging.AddConsole(o => o.LogToStandardErrorThreshold = LogLevel.Trace);
 builder.Services.AddHttpClient<IVectorSearchClient, VectorSearchClient>(

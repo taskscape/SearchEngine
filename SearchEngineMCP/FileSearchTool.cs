@@ -13,14 +13,15 @@ public class FileSearchTools
     public record SearchHit(
         string Uid,
         string Title,
-        string Snippet,
+        string Content,
         DateTime Timestamp,
-        double Score);
+        double Score,
+        int Source);
 
     public record SearchResult(IEnumerable<SearchHit> Content);
 
     [McpServerTool]
-    [Description("Search over the files indexed on the machine. Returns up to page_size snippets so the model can decide what to read.")]
+    [Description("Search for files matching the query indexed on the machine by their filename, filepath, content and timestamp. Returns up to page_size results so the model can decide what to read. These results contain information such as a unique identifier, path (title), cropped content, timestamp and whether it's a file or email (source - 0 = file, 1 = email).")]
     public async Task<SearchResult> search_files(
         string query,
         int page = 0,
@@ -33,8 +34,18 @@ public class FileSearchTools
             h.title,
             h.content,
             h.timestamp,
-            h.score));
+            h.score,
+            h.source));
 
         return new SearchResult(hits);
+    }
+    
+    [McpServerTool]
+    [Description("Search for a file or email by it's unique identifier. Returns a result with the unique identifier, filepath (title), full uncropped content, a timestamp and information whether it is a file or an email (source - 0 = file, 1 = email).")]
+    public async Task<SearchHit> get_full_file(string uid)
+    {
+        SearchResultDto result = await _api.GetFileAsync(uid);
+        SearchHitDto file = result.Result;
+        return new SearchHit(file.uid, file.title, file.content, file.timestamp, file.score, file.source);
     }
 }
