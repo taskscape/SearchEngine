@@ -1,10 +1,10 @@
 # Search Engine  
 
 > **TL;DR**  
-> *Agents* = local crawlers that extract text + thumbnails from files & e-mails and send the results to a server.
+> *Agents* = local crawlers that extract text + thumbnails from files & e-mails and send the results to a server.  
 > *Agents API* = ASP .NET 9 Web API that allows monitored files to be downloaded, exposes a `/download` endpoint.  
 > *Server* = thin ASP .NET 9 Web API that buffers/batches the incoming indices and persists them into **Weaviate**, then exposes a `/search` endpoint.  
-> *Client* = Blazor web app that allows for easy search using the server API. Displays a neat list of search hits and allows for download of those files.
+> *Client* = Blazor web app that allows for easy search using the server API. Displays a neat list of search hits and allows for download of those files.  
 > *MCP Server* = thin MCP server which allows for LLMs to also use search.
 
 ---
