@@ -36,6 +36,13 @@ app.MapGet("/search/{query}", async (string query, int hitsPerPage, IDatabaseRep
     }
 );
 
+app.MapGet("/files/{uid:guid}", async (Guid uid, IDatabaseRepository repository) =>
+    {
+        SearchHit? results = await repository.GetFullIndex(uid);
+        return results is null ? Results.NotFound() : Results.Ok(new { Results = results });
+    }
+);
+
 app.MapPost("/upload", async (
     IndexData? index,
     IIndexQueue queue,

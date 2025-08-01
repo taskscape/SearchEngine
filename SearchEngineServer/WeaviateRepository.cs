@@ -136,7 +136,99 @@ public class WeaviateRepository(ILogger<WeaviateRepository> logger, IConfigurati
             return false;
         }
     }
-    
+
+    public async Task<SearchHit?>? GetFullIndex(Guid uid)
+    {
+        if (uid == Guid.Empty)
+        {
+            return null;
+        }
+        
+        WeaviateDB? weaviate;
+        try
+        {
+            weaviate = await GetWeaviateDbAsync();
+        }
+        catch (Exception ex)
+        {
+            logger.LogError("Could not connect to Weaviate: {Message}", ex.Message);
+            return null;
+        }
+        
+        try
+        {
+            if (weaviate == null)
+            {
+                logger.LogError("Could not connect to Weaviate");
+                return null;
+            }
+            
+            string gql = $$"""
+                       {
+                         Get {
+                           Index_data(
+                             where: {
+                               operator: Equal
+                               path: ["uid"]
+                               valueString: "{{uid}}"
+                             }
+                             limit: 1
+                           ) {
+                             filePath content created uid previewIcon
+                           }
+                           Email_data(
+                             where: {
+                               operator: Equal
+                               path: ["uid"]
+                               valueString: "{{uid}}"
+                             }
+                             limit: 1
+                           ) {
+                             subject body sent uid previewIcon
+                           }
+                         }
+                       }
+                       """;
+
+        GraphQLResponse r = await weaviate.Schema.RawQuery(new GraphQLQuery { Query = gql });
+        
+        JToken? fileHit = ((JArray?)r.Data?["Get"]?["Index_data"])?.FirstOrDefault();
+        if (fileHit is not null)
+        {
+            return new SearchHit(
+                Uid:         Guid.Parse((string?)fileHit["uid"] ?? Guid.Empty.ToString()),
+                Title:       (string?)fileHit["filePath"] ?? string.Empty,
+                Content:     (string?)fileHit["content"] ?? string.Empty,
+                Timestamp:   fileHit.Value<DateTime?>("created"),
+                Score:       0f,
+                PreviewIcon: (string?)fileHit["previewIcon"] ?? string.Empty,
+                Source:      SearchSource.File
+            );
+        }
+        
+        JToken? emailHit = ((JArray?)r.Data?["Get"]?["Email_data"])?.FirstOrDefault();
+        if (emailHit is not null)
+        {
+            return new SearchHit(
+                Uid:         Guid.Parse((string?)emailHit["uid"] ?? Guid.Empty.ToString()),
+                Title:       (string?)emailHit["subject"] ?? string.Empty,
+                Content:     (string?)emailHit["body"] ?? string.Empty,
+                Timestamp:   emailHit.Value<DateTime?>("sent"),
+                Score:       0f,
+                PreviewIcon: (string?)emailHit["previewIcon"] ?? string.Empty,
+                Source:      SearchSource.Email
+            );
+        }
+
+        return null;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError("An error occured when trying to add an index: {Message}", ex.Message);
+            return null;
+        }
+    }
+
     public async Task<bool> DeleteByUidAsync(Guid uid, string? tenant = null, bool treat404AsSuccess = false)
     {
         try
