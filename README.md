@@ -69,6 +69,7 @@ Please keep `IncludedPaths` and `ScanExclusions` the same in both configs for pr
 | `POST`| `/delete?uid=GUID`                  | Delete one record by uid                                        |
 | `HEAD`| `/doc/{uid}`                        | Existence probe used by agents to skip re-uploads               |
 | `GET` | `/search/{query}?limit=10`          | Returns semantic matches ordered by `rerank.score`              |
+| `GET` | `/files/{uid}`                      | Returns full file content and information by uid                |
 | `GET` | `/download/{path}`                  | Downloads a file specified in `path` if monitored               |
 
 ### Configuration (`SearchEngineServer/appsettings.json`)
@@ -279,6 +280,7 @@ Publishing projects:
 - *Agents and AgentsAPI* - `dotnet publish --sc` in the SearchEngineAgents folder
 - *Server* - `dotnet publish --sc` in the SearchEngineServer folder or `dotnet publish -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true` if to run in a container with Weaviate (linux based)
 - *Client* - `dotnet publish` in the SearchEngineClient folder
+- *MCP Server* - `dotnet publish -c Release -r win-x64 -p:PublishSingleFile=true` in the SearchEngineMCP folder
 
 It is also necessary to add the following section inside `<system.webServer>` to AgentsAPI `web.config` for downloads to work reliably:
 ```xml
