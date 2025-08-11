@@ -12,13 +12,18 @@ builder.Configuration.AddJsonFile(
     Path.Combine(contentRoot, "appsettings.json"),
     optional: false,
     reloadOnChange: true);
-builder.Services.AddControllers().AddNewtonsoftJson(); 
+builder.Services.AddControllers().AddNewtonsoftJson();
 builder.Services.AddLogging(logging => logging.AddConsole());
+
 builder.Services.AddOptions<ScanInclusions>()
     .BindConfiguration("IncludedPaths");
 
 builder.Services.AddOptions<ScanExclusions>()
     .BindConfiguration("ScanExclusions");
+
+builder.Services.AddOptions<AttachmentSettings>()
+    .BindConfiguration("AttachmentSettings");
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 

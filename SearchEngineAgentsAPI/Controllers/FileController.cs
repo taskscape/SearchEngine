@@ -6,42 +6,59 @@ using SearchEngineAgentsConfiguration;
 namespace SearchEngineAgentsAPI.Controllers;
 
 [ApiController]
-public class FileController(ILogger<FileController> logger, IOptions<ScanInclusions> includeOptions, IOptions<ScanExclusions> excludeOptions) : ControllerBase
+public class FileController(
+    ILogger<FileController> logger,
+    IOptions<ScanInclusions> includeOptions,
+    IOptions<ScanExclusions> excludeOptions,
+    IOptions<AttachmentSettings> attachOptions
+) : ControllerBase
 {
+    private static string NormalizeDir(string p) =>
+        Path.GetFullPath(p).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+
     private readonly HashSet<string> _monitored =
         includeOptions.Value.Paths
-            .Select(p => Path.GetFullPath(p).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar)
+            .Select(p => NormalizeDir(p))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
     private readonly HashSet<string> _excludedPaths =
         excludeOptions.Value.Paths
-            .Select(p => Path.GetFullPath(p)
-                .TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar)
+            .Select(p => NormalizeDir(p))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
     private readonly HashSet<string> _excludedFolderNames =
         excludeOptions.Value.FolderNames
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
     
+    private readonly string? _attachmentsRoot = string.IsNullOrWhiteSpace(attachOptions.Value.RootPath)
+        ? null
+        : NormalizeDir(attachOptions.Value.RootPath);
+
     [HttpGet("download/{path}")]
     public async Task<IActionResult> DownloadFile(string path)
     {
         try
-        { 
+        {
             path = CanonicalPath(HttpUtility.UrlDecode(path));
-            bool insideIncluded  = _monitored.Any(m => path.StartsWith(m, StringComparison.OrdinalIgnoreCase));
-            bool insideExclPath = _excludedPaths.Any(e => path.StartsWith(e, StringComparison.OrdinalIgnoreCase));
-            bool hasExclFolder = path.TrimEnd(Path.DirectorySeparatorChar)
+            string normPath = NormalizeDir(Path.GetDirectoryName(path) ?? path);
+
+            bool insideIncluded  = _monitored.Any(m => normPath.StartsWith(m, StringComparison.OrdinalIgnoreCase));
+            bool insideExclPath  = _excludedPaths.Any(e => normPath.StartsWith(e, StringComparison.OrdinalIgnoreCase));
+            bool hasExclFolder   = path.TrimEnd(Path.DirectorySeparatorChar)
                 .Split(Path.DirectorySeparatorChar)
                 .Any(part => _excludedFolderNames.Contains(part));
 
-            bool allowed = insideIncluded && !(insideExclPath || hasExclFolder);
+            bool insideAttachments = _attachmentsRoot is not null &&
+                                     normPath.StartsWith(_attachmentsRoot, StringComparison.OrdinalIgnoreCase);
+            
+            bool allowed = (insideIncluded && !(insideExclPath || hasExclFolder)) || insideAttachments;
+
             if (!allowed)
             {
                 logger.LogWarning("Blocked download of excluded file {FullPath}", path);
                 return StatusCode(StatusCodes.Status403Forbidden, "This file is outside the monitored folders.");
             }
-            
+
             if (!System.IO.File.Exists(path))
             {
                 logger.LogWarning("File {FullPath} does not exist.", path);
@@ -53,7 +70,7 @@ public class FileController(ILogger<FileController> logger, IOptions<ScanInclusi
             string fileName = Path.GetFileName(path);
 
             logger.LogInformation("Serving file {FileName}.", fileName);
-            
+
             return File(fileStream, contentType, fileName, enableRangeProcessing: true);
         }
         catch (Exception ex)
@@ -75,7 +92,7 @@ public class FileController(ILogger<FileController> logger, IOptions<ScanInclusi
             _ => "application/octet-stream"
         };
     }
-    
+
     private static string CanonicalPath(string p)
     {
         p = p.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);

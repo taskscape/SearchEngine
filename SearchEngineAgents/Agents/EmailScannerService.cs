@@ -22,13 +22,15 @@ public class EmailScannerService(
     IOptions<AgentDelays> delayOptions,
     EmailState state,
     IConfiguration configuration,
-    IHttpClientFactory http)
+    IHttpClientFactory http,
+    IOptions<AttachmentSettings> attachOptions)
     : BackgroundService
 {
     private readonly EmailSettings _settings = emailOptions.Value;
     private readonly TimeSpan _delay = TimeSpan.FromSeconds(delayOptions.Value.Email);
     private readonly HashSet<Guid> _seen = [];
     private readonly string _server = configuration["ServerAddress"]!;
+    private readonly AttachmentSettings _attach = attachOptions.Value;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -62,7 +64,7 @@ public class EmailScannerService(
                     MimeMessage msg = await inbox.GetMessageAsync(uid, stoppingToken);
                     Guid id   = EmailId.FromMessageId(msg.MessageId);
                     DateTimeOffset? sent = msg.Date;
- 
+
                     if (state.IsUnchanged(id, sent) && await ServerHasAsync(id, stoppingToken))
                     {
                         _seen.Add(id);
@@ -95,6 +97,7 @@ public class EmailScannerService(
                 try
                 {
                     await SendDeletionAsync(v, stoppingToken);
+                    DeleteAttachmentFolder(v);
                     state.Delete(v);
                     logger.LogInformation("E-mail vanished – sent /delete for {Id}", v);
                 }
@@ -105,11 +108,11 @@ public class EmailScannerService(
                 }
             }
             _seen.Clear();
-            
+
             await Task.Delay(_delay, stoppingToken);
         }
     }
-    
+
     private async Task SendIndexAsync(EmailData index, CancellationToken ct = default)
     {
         string serverAddress = configuration["ServerAddress"] ?? throw new InvalidOperationException("Missing 'ServerAddress' in configuration.");
@@ -139,7 +142,7 @@ public class EmailScannerService(
             resp.EnsureSuccessStatusCode();
         }, ct);
     }
-    
+
     private async Task<bool> ServerHasAsync(Guid id, CancellationToken ct)
     {
         using HttpClient client = http.CreateClient();
@@ -158,10 +161,32 @@ public class EmailScannerService(
             return false;
         }
     }
-    
+
     private async Task SendDeletionAsync(Guid uid, CancellationToken ct = default)
     {
         using HttpClient client = http.CreateClient();
         await client.PostAsync($"{_server}/delete?uid={uid}", content: null, cancellationToken: ct);
+    }
+    
+    private void DeleteAttachmentFolder(Guid emailId)
+    {
+        if (!_attach.Enabled || string.IsNullOrWhiteSpace(_attach.RootPath)) return;
+
+        string dir = Path.Combine(
+            Path.GetFullPath(_attach.RootPath).TrimEnd(Path.DirectorySeparatorChar),
+            emailId.ToString("N"));
+
+        try
+        {
+            if (Directory.Exists(dir))
+            {
+                Directory.Delete(dir, recursive: true);
+                logger.LogInformation("Deleted attachments folder {Dir}", dir);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to delete attachments folder {Dir}", dir);
+        }
     }
 }

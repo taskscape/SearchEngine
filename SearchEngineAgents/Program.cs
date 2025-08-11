@@ -13,7 +13,7 @@ IHost host = Host.CreateDefaultBuilder(args)
         config.Sources.Clear();
         string contentRoot = context.HostingEnvironment.ContentRootPath;
         config.AddJsonFile(Path.Combine(contentRoot, "appsettings.json"), optional: false, reloadOnChange: true);
-        
+
         config.AddEnvironmentVariables();
         if (args != null)
         {
@@ -27,7 +27,8 @@ IHost host = Host.CreateDefaultBuilder(args)
         services.Configure<AgentDelays>(ctx.Configuration.GetSection("AgentDelaysSeconds"));
         services.Configure<ScanInclusions>(ctx.Configuration.GetSection("IncludedPaths"));
         services.Configure<ScanExclusions>(ctx.Configuration.GetSection("ScanExclusions"));
-        
+        services.Configure<AttachmentSettings>(ctx.Configuration.GetSection("AttachmentSettings"));
+
         services.AddSingleton<EmailState>();
         services.AddSingleton<IFileExtractionAgent, PdfExtractionAgent>();
         services.AddSingleton<IFileExtractionAgent, WordExtractionAgent>();

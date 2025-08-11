@@ -18,7 +18,9 @@ public class FileScannerService(
     IOptions<AgentDelays> delayOptions,
     IOptions<ScanInclusions> inclusionOptions,
     IOptions<ScanExclusions> exclusionOptions,
-    IHttpClientFactory http)
+    IHttpClientFactory http,
+    IOptions<AttachmentSettings> attachOptions
+    )
     : BackgroundService
 {
     private readonly TimeSpan _delay = TimeSpan.FromSeconds(delayOptions.Value.Files);
@@ -36,10 +38,19 @@ public class FileScannerService(
     private readonly HashSet<string> _excludedFolderNames =
         exclusionOptions.Value.FolderNames
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
-    
+
     private readonly ScanState _state = new();
     private readonly HashSet<Guid> _seen = [];
     
+    private readonly string? _attachmentsRoot =
+        string.IsNullOrWhiteSpace(attachOptions.Value.RootPath)
+            ? null
+            : Path.GetFullPath(attachOptions.Value.RootPath)
+                .TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+
+    private readonly bool _scanAttachments =
+        attachOptions.Value.Enabled && !string.IsNullOrWhiteSpace(attachOptions.Value.RootPath);
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         Dictionary<string, List<IFileExtractionAgent>> extensionMap = fileAgents
@@ -51,7 +62,11 @@ public class FileScannerService(
 
         while (!stoppingToken.IsCancellationRequested)
         {
-            foreach (string root in _includedRoots)
+            List<string> roots = _includedRoots.ToList();
+            if (_scanAttachments && _attachmentsRoot is not null)
+                roots.Add(_attachmentsRoot);
+
+            foreach (string root in roots)
             {
                 if (!Directory.Exists(root))
                 {
@@ -67,10 +82,10 @@ public class FileScannerService(
                 .AllIds()
                 .Except(_seen)
                 .ToList();
-            
+
             foreach (Guid id in vanished)
                 _state.Delete(id);
-            
+
             foreach (Guid id in vanished)
             {
                 try
@@ -85,7 +100,7 @@ public class FileScannerService(
                         id);
                 }
             }
-            
+
             _seen.Clear();
 
             await Task.Delay(_delay, stoppingToken);
@@ -105,8 +120,8 @@ public class FileScannerService(
         while (dirs.Count > 0 && !ct.IsCancellationRequested)
         {
             string current = dirs.Pop();
-            if (IsExcludedDirectory(current)) continue; 
-            
+            if (IsExcludedDirectory(current)) continue;
+
             IEnumerable<string> files;
             try
             {
@@ -203,33 +218,24 @@ public class FileScannerService(
 
         logger.LogDebug("Uploaded index for file '{Path}'", index.FilePath);
     }
-    
+
     private async Task SendDeletionAsync(Guid uid, CancellationToken ct = default)
     {
         string serverAddress = configuration["ServerAddress"]!;
         using HttpClient client = http.CreateClient();
         await client.PostAsync($"{serverAddress}/delete?uid={uid}", content: null, cancellationToken: ct);
     }
-
-    private bool IsExcludedDirectory(string dir)
-    {
-        string norm = dir.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
-        
-        if (_excludedPaths.Any(p => norm.StartsWith(p, StringComparison.OrdinalIgnoreCase)))
-            return true;
-        
-        string name = Path.GetFileName(norm.TrimEnd(Path.DirectorySeparatorChar));
-        return _excludedFolderNames.Contains(name);
-    }
     
     private async Task<bool> ServerHasAsync(Guid uid, CancellationToken ct)
     {
         using HttpClient client = http.CreateClient();
-        using HttpRequestMessage req = new(HttpMethod.Head, new Uri(new Uri(configuration["ServerAddress"]), $"/doc/{uid}"));
+        using HttpRequestMessage req = new(HttpMethod.Head,
+            new Uri(new Uri(configuration["ServerAddress"]), $"/doc/{uid}"));
 
         try
         {
-            using HttpResponseMessage resp = await client.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
+            using HttpResponseMessage resp =
+                await client.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
             return resp.StatusCode == HttpStatusCode.OK;
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
@@ -241,6 +247,27 @@ public class FileScannerService(
         }
     }
 
+    private bool IsExcludedDirectory(string dir)
+    {
+        string norm = dir.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        
+        if (_scanAttachments && _attachmentsRoot is not null &&
+            norm.StartsWith(_attachmentsRoot, StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        if (_excludedPaths.Any(p => norm.StartsWith(p, StringComparison.OrdinalIgnoreCase)))
+            return true;
+
+        string name = Path.GetFileName(norm.TrimEnd(Path.DirectorySeparatorChar));
+        return _excludedFolderNames.Contains(name);
+    }
+
     private bool IsExcludedFile(string file)
-        => _excludedPaths.Any(p => file.StartsWith(p, StringComparison.OrdinalIgnoreCase));
+    {
+        if (_scanAttachments && _attachmentsRoot is not null &&
+            file.StartsWith(_attachmentsRoot, StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        return _excludedPaths.Any(p => file.StartsWith(p, StringComparison.OrdinalIgnoreCase));
+    }
 }
