@@ -164,10 +164,26 @@
 
     private async Task DownloadHitAsync(SearchHit hit)
     {
-        if (hit is null || string.IsNullOrWhiteSpace(hit.Title)) return;
+        if (hit is null) return;
 
-        string url = $"{DownloadApiBase}{HttpUtility.UrlPathEncode(hit.Title)}";
-        string name = Path.GetFileName(hit.Title);
+        string? physicalPath = hit.Source switch
+        {
+            SearchSource.Email => hit.DownloadPath,
+            SearchSource.File  => hit.Title,
+            _ => null
+        };
+
+        if (string.IsNullOrWhiteSpace(physicalPath))
+        {
+            _error = hit.Source == SearchSource.Email
+                ? "This email doesn’t have a downloadable path yet. Try reindexing or check server logs."
+                : "This result doesn’t have a valid download path.";
+            StateHasChanged();
+            return;
+        }
+        
+        string url  = $"{DownloadApiBase}{Uri.EscapeDataString(physicalPath)}";
+        string name = System.IO.Path.GetFileName(physicalPath);
 
         try
         {
@@ -179,6 +195,7 @@
             StateHasChanged();
         }
     }
+
 
     private MarkupString Highlight(string? text)
     {

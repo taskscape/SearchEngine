@@ -24,6 +24,9 @@ builder.Services.AddOptions<ScanExclusions>()
 builder.Services.AddOptions<AttachmentSettings>()
     .BindConfiguration("AttachmentSettings");
 
+builder.Services.AddOptions<EmailArchiveSettings>()
+    .BindConfiguration("EmailArchive");
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 

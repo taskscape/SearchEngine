@@ -50,7 +50,7 @@ public class WeaviateRepository(ILogger<WeaviateRepository> logger, IConfigurati
                              limit:  50
                              nearText: { concepts: [ "{{query}}" ] }
                            ){
-                             subject body sent uid previewIcon
+                             subject body sent uid previewIcon downloadPath
                              _additional { rerank(property:"body", query:"{{query}}"){ score } }
                            }
                          }
@@ -70,7 +70,8 @@ public class WeaviateRepository(ILogger<WeaviateRepository> logger, IConfigurati
                 Timestamp:   t.Value<DateTime?>("created"),
                 Score:       (float?)t.SelectToken("_additional.rerank[0].score") ?? 0,
                 PreviewIcon: (string?)t["previewIcon"] ?? string.Empty,
-                Source:      SearchSource.File));
+                Source:      SearchSource.File,
+                DownloadPath:(string?)t["filePath"] ?? string.Empty));
         }
 
         foreach (JToken t in (JArray?)r.Data?["Get"]?["Email_data"] ?? [])
@@ -82,7 +83,8 @@ public class WeaviateRepository(ILogger<WeaviateRepository> logger, IConfigurati
                 Timestamp:   t.Value<DateTime?>("sent"),
                 Score:       (float?)t.SelectToken("_additional.rerank[0].score") ?? 0,
                 PreviewIcon: (string?)t["previewIcon"] ?? string.Empty,
-                Source:      SearchSource.Email));
+                Source:      SearchSource.Email,
+                DownloadPath:(string?)t["downloadPath"] ?? string.Empty));
         }
         
         return hits
@@ -184,7 +186,7 @@ public class WeaviateRepository(ILogger<WeaviateRepository> logger, IConfigurati
                              }
                              limit: 1
                            ) {
-                             subject body sent uid previewIcon
+                             subject body sent uid previewIcon downloadPath
                            }
                          }
                        }
@@ -202,7 +204,8 @@ public class WeaviateRepository(ILogger<WeaviateRepository> logger, IConfigurati
                 Timestamp:   fileHit.Value<DateTime?>("created"),
                 Score:       0f,
                 PreviewIcon: (string?)fileHit["previewIcon"] ?? string.Empty,
-                Source:      SearchSource.File
+                Source:      SearchSource.File,
+                DownloadPath:(string?)fileHit["filePath"] ?? string.Empty
             );
         }
         
@@ -216,7 +219,8 @@ public class WeaviateRepository(ILogger<WeaviateRepository> logger, IConfigurati
                 Timestamp:   emailHit.Value<DateTime?>("sent"),
                 Score:       0f,
                 PreviewIcon: (string?)emailHit["previewIcon"] ?? string.Empty,
-                Source:      SearchSource.Email
+                Source:      SearchSource.Email,
+                DownloadPath:(string?)emailHit["downloadPath"] ?? string.Empty
             );
         }
 

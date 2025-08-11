@@ -28,6 +28,7 @@ IHost host = Host.CreateDefaultBuilder(args)
         services.Configure<ScanInclusions>(ctx.Configuration.GetSection("IncludedPaths"));
         services.Configure<ScanExclusions>(ctx.Configuration.GetSection("ScanExclusions"));
         services.Configure<AttachmentSettings>(ctx.Configuration.GetSection("AttachmentSettings"));
+        services.Configure<EmailArchiveSettings>(ctx.Configuration.GetSection("EmailArchive"));
 
         services.AddSingleton<EmailState>();
         services.AddSingleton<IFileExtractionAgent, PdfExtractionAgent>();

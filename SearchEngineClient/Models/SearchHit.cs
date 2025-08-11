@@ -10,7 +10,8 @@ public sealed record SearchHit
     DateTimeOffset? Timestamp,
     float Score,
     SearchSource Source,
-    string PreviewIcon
+    string PreviewIcon,
+    string? DownloadPath
 );
 
 public sealed record SearchResponse(IEnumerable<SearchHit> Results);

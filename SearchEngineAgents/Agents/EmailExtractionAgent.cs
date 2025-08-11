@@ -13,7 +13,8 @@ namespace SearchEngineAgents.Agents;
 
 public class EmailExtractionAgent(
     ILogger<EmailExtractionAgent> logger,
-    IOptions<AttachmentSettings> attachOptions)
+    IOptions<AttachmentSettings> attachOptions,
+    IOptions<EmailArchiveSettings> emlOptions)
     : IEmailExtractionAgent
 {
     private const int PreviewWidth  = 800;
@@ -21,6 +22,7 @@ public class EmailExtractionAgent(
 
     private static readonly HtmlConverter Converter = new();
     private readonly AttachmentSettings _attach = attachOptions.Value;
+    private readonly EmailArchiveSettings _eml = emlOptions.Value;
 
     public async Task<EmailData> ExtractAsync(MimeMessage message, CancellationToken ct)
     {
@@ -28,8 +30,6 @@ public class EmailExtractionAgent(
 
         IEnumerable<MimePart> allParts = message.BodyParts.OfType<MimePart>();
         IEnumerable<MimePart> attachments = allParts.Where(IsAttachmentLike);
-
-        logger.LogInformation("[Email extraction complete for message {MessageId}]", message.MessageId);
         byte[]? preview = await GeneratePreviewImageAsync(message, ct);
 
         EmailData index = new()
@@ -42,6 +42,18 @@ public class EmailExtractionAgent(
             PreviewIcon = preview is null ? null : Convert.ToBase64String(preview)
         };
         
+        if (_eml.Enabled && !string.IsNullOrWhiteSpace(_eml.RootPath))
+        {
+            try
+            {
+                index.DownloadPath = await SaveEmlAsync(message, index.Uid, ct);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Saving EML failed for {Msg}", message.MessageId);
+            }
+        }
+        
         if (_attach.Enabled && !string.IsNullOrWhiteSpace(_attach.RootPath))
         {
             try
@@ -53,8 +65,32 @@ public class EmailExtractionAgent(
                 logger.LogWarning(ex, "Saving attachments failed for {Msg}", message.MessageId);
             }
         }
-
+        
+        logger.LogInformation("[Email extraction complete for message {MessageId}]", message.MessageId);
         return index;
+    }
+    
+    private async Task<string> SaveEmlAsync(MimeMessage msg, Guid emailId, CancellationToken ct)
+    {
+        string root = NormalizeDir(_eml.RootPath);
+        Directory.CreateDirectory(root);
+
+        string fileName = MakeSafeBaseName(msg.Subject) + "-" + emailId.ToString("N") + ".eml";
+        string fullPath = Path.Combine(root, fileName);
+
+        await using FileStream fs = new(fullPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, FileOptions.Asynchronous);
+        await msg.WriteToAsync(fs, ct);
+        return fullPath;
+    }
+    
+    private static string MakeSafeBaseName(string? s)
+    {
+        s ??= "email";
+        foreach (char c in Path.GetInvalidFileNameChars()) s = s.Replace(c, '_');
+        s = s.Replace("..", "_").Trim();
+        if (s.Length == 0) s = "email";
+        if (s.Length > 120) s = s[..120];
+        return s;
     }
 
     private static string StripHtmlCssAndCollapseLines(string html)

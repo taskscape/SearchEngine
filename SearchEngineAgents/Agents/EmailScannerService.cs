@@ -23,7 +23,8 @@ public class EmailScannerService(
     EmailState state,
     IConfiguration configuration,
     IHttpClientFactory http,
-    IOptions<AttachmentSettings> attachOptions)
+    IOptions<AttachmentSettings> attachOptions,
+    IOptions<EmailArchiveSettings> emlOptions)
     : BackgroundService
 {
     private readonly EmailSettings _settings = emailOptions.Value;
@@ -31,6 +32,7 @@ public class EmailScannerService(
     private readonly HashSet<Guid> _seen = [];
     private readonly string _server = configuration["ServerAddress"]!;
     private readonly AttachmentSettings _attach = attachOptions.Value;
+    private readonly EmailArchiveSettings _eml = emlOptions.Value;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -98,6 +100,7 @@ public class EmailScannerService(
                 {
                     await SendDeletionAsync(v, stoppingToken);
                     DeleteAttachmentFolder(v);
+                    DeleteEmlFile(v); 
                     state.Delete(v);
                     logger.LogInformation("E-mail vanished – sent /delete for {Id}", v);
                 }
@@ -110,6 +113,25 @@ public class EmailScannerService(
             _seen.Clear();
 
             await Task.Delay(_delay, stoppingToken);
+        }
+    }
+    
+    private void DeleteEmlFile(Guid emailId)
+    {
+        if (!_eml.Enabled || string.IsNullOrWhiteSpace(_eml.RootPath)) return;
+        string root = Path.GetFullPath(_eml.RootPath).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+
+        try
+        {
+            string suffix = "-" + emailId.ToString("N") + ".eml";
+            foreach (string path in Directory.Exists(root) ? Directory.EnumerateFiles(root, "*" + suffix) : Array.Empty<string>())
+            {
+                try { File.Delete(path); } catch { /* ignore */ }
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to delete EML for {Id}", emailId);
         }
     }
 

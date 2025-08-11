@@ -10,7 +10,8 @@ public class FileController(
     ILogger<FileController> logger,
     IOptions<ScanInclusions> includeOptions,
     IOptions<ScanExclusions> excludeOptions,
-    IOptions<AttachmentSettings> attachOptions
+    IOptions<AttachmentSettings> attachOptions,
+    IOptions<EmailArchiveSettings> emlOptions
 ) : ControllerBase
 {
     private static string NormalizeDir(string p) =>
@@ -18,12 +19,12 @@ public class FileController(
 
     private readonly HashSet<string> _monitored =
         includeOptions.Value.Paths
-            .Select(p => NormalizeDir(p))
+            .Select(NormalizeDir)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
     private readonly HashSet<string> _excludedPaths =
         excludeOptions.Value.Paths
-            .Select(p => NormalizeDir(p))
+            .Select(NormalizeDir)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
     private readonly HashSet<string> _excludedFolderNames =
@@ -34,44 +35,36 @@ public class FileController(
         ? null
         : NormalizeDir(attachOptions.Value.RootPath);
 
+    private readonly string? _emlRoot = string.IsNullOrWhiteSpace(emlOptions.Value.RootPath)
+        ? null
+        : NormalizeDir(emlOptions.Value.RootPath);
+
     [HttpGet("download/{path}")]
     public async Task<IActionResult> DownloadFile(string path)
     {
         try
         {
             path = CanonicalPath(HttpUtility.UrlDecode(path));
-            string normPath = NormalizeDir(Path.GetDirectoryName(path) ?? path);
+            string normDir = NormalizeDir(Path.GetDirectoryName(path) ?? path);
 
-            bool insideIncluded  = _monitored.Any(m => normPath.StartsWith(m, StringComparison.OrdinalIgnoreCase));
-            bool insideExclPath  = _excludedPaths.Any(e => normPath.StartsWith(e, StringComparison.OrdinalIgnoreCase));
-            bool hasExclFolder   = path.TrimEnd(Path.DirectorySeparatorChar)
+            bool insideIncluded   = _monitored.Any(m => normDir.StartsWith(m, StringComparison.OrdinalIgnoreCase));
+            bool insideExclPath   = _excludedPaths.Any(e => normDir.StartsWith(e, StringComparison.OrdinalIgnoreCase));
+            bool hasExclFolder    = path.TrimEnd(Path.DirectorySeparatorChar)
                 .Split(Path.DirectorySeparatorChar)
                 .Any(part => _excludedFolderNames.Contains(part));
+            bool insideAttachments = _attachmentsRoot is not null && normDir.StartsWith(_attachmentsRoot, StringComparison.OrdinalIgnoreCase);
+            bool insideEml         = _emlRoot is not null && normDir.StartsWith(_emlRoot, StringComparison.OrdinalIgnoreCase);
 
-            bool insideAttachments = _attachmentsRoot is not null &&
-                                     normPath.StartsWith(_attachmentsRoot, StringComparison.OrdinalIgnoreCase);
-            
-            bool allowed = (insideIncluded && !(insideExclPath || hasExclFolder)) || insideAttachments;
+            bool allowed = (insideIncluded && !(insideExclPath || hasExclFolder)) || insideAttachments || insideEml;
+            if (!allowed) return StatusCode(StatusCodes.Status403Forbidden, "This file is outside the monitored folders.");
 
-            if (!allowed)
-            {
-                logger.LogWarning("Blocked download of excluded file {FullPath}", path);
-                return StatusCode(StatusCodes.Status403Forbidden, "This file is outside the monitored folders.");
-            }
+            if (!System.IO.File.Exists(path)) return NotFound($"File {path} does not exist.");
 
-            if (!System.IO.File.Exists(path))
-            {
-                logger.LogWarning("File {FullPath} does not exist.", path);
-                return NotFound($"File {path} does not exist.");
-            }
-
-            FileStream fileStream = new(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+            FileStream fs = new(path, FileMode.Open, FileAccess.Read, FileShare.Read);
             string contentType = GetContentType(path);
-            string fileName = Path.GetFileName(path);
-
-            logger.LogInformation("Serving file {FileName}.", fileName);
-
-            return File(fileStream, contentType, fileName, enableRangeProcessing: true);
+            string downloadName = Path.GetFileName(path);
+            logger.LogInformation("Serving file {FileName}.", downloadName);
+            return File(fs, contentType, downloadName, enableRangeProcessing: true);
         }
         catch (Exception ex)
         {
