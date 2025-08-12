@@ -48,9 +48,24 @@ Please keep `IncludedPaths` and `ScanExclusions` the same in both configs for pr
   "ScanExclusions": {
     "Paths": [ "C:\\Docs\\Private\\", "C:\\Windows" ],
     "FolderNames": [ "node_modules", ".git" ]
+  },
+  "AttachmentSettings": {
+    "Enabled": true,
+    "RootPath": "C:\\Path\\To\\Save\\Attachments\\To",
+    "SaveInline": false,
+    "MinInlineBytes": 4096,
+    "MaxAttachmentMB": 25,
+    "AllowedExtensions": [ ".pdf", ".docx", ".doc", ".txt", ".rtf", ".pptx", ".xlsx", ".csv", ".png", ".jpg", ".jpeg" ],
+    "BlockExecutables": true
+  },
+  "EmailArchive": {
+    "Enabled": true,
+    "RootPath": "C:\\Path\\To\\Save\\Emails\\To"
   }
 }
 ```
+
+The specified `RootPath` in `AttachmentSettings` is also always included in the scan.
 
 ## 3 • Server (SearchEngineServer)
 
