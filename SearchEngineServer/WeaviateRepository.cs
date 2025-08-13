@@ -399,7 +399,7 @@ public class WeaviateRepository(ILogger<WeaviateRepository> logger, IConfigurati
             return false;
         }
 
-        WeaviateClass<IndexData> collection = await GetOrCreateEmailClass(weaviate);
+        WeaviateClass<EmailData> collection = await GetOrCreateEmailClass(weaviate);
         string className = collection.Name;
         string baseUrl = weaviate.Client.BaseUrl.TrimEnd('/');
         
@@ -550,12 +550,12 @@ public class WeaviateRepository(ILogger<WeaviateRepository> logger, IConfigurati
             $"Failed to create or retrieve Weaviate class '{FileCollectionName}'.");
     }
     
-    private static async Task<WeaviateClass<IndexData>> GetOrCreateEmailClass(WeaviateDB weaviate)
+    private static async Task<WeaviateClass<EmailData>> GetOrCreateEmailClass(WeaviateDB weaviate)
     {
-        WeaviateClass<IndexData>? txt = weaviate.Schema.GetClass<IndexData>(EmailCollectionName);
+        WeaviateClass<EmailData>? txt = weaviate.Schema.GetClass<EmailData>(EmailCollectionName);
         if (txt is not null) return txt;
         
-        txt = await weaviate.Schema.NewClass<IndexData>(EmailCollectionName);
+        txt = await weaviate.Schema.NewClass<EmailData>(EmailCollectionName);
         
         return txt ?? throw new InvalidOperationException(
             $"Failed to create or retrieve Weaviate class '{EmailCollectionName}'.");
