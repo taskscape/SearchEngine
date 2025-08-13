@@ -26,6 +26,7 @@ public class EmailData
     [field: IndexSearchable(false)]
     public string? PreviewIcon;
     
+    [JsonInclude]
     [JsonPropertyName("downloadPath")]
     [field: IndexFilterable(false)]
     [field: IndexSearchable(false)]
