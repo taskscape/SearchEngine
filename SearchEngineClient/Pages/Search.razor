@@ -12,6 +12,10 @@
 @inject IJSRuntime JS
 @inject IConfiguration Configuration
 
+<h1 class="logo searchlogo">
+    <span>S</span><span>e</span><span>a</span><span>r</span><span>c</span><span>h</span><span>E</span><span>n</span><span>g</span><span>i</span><span>n</span><span>e</span>
+</h1>
+
 <div class="hits">
     @if (!string.IsNullOrEmpty(_error))
     {
@@ -26,52 +30,69 @@
     }
     else if (_isLoading)
     {
-    <div class="spinner" role="status" aria-label="Loading"></div>
-    }
-    else if (_hits.Count == 0)
-    {
-        <p>No results for <strong>@_query</strong>.</p>
-        @if (_currentPage > 1)
-        {
-            <div class="pager">
-                <button @onclick="PrevPage">Previous</button>
-                <span>Page @_currentPage</span>
-                <button disabled>Next</button>
-            </div>
-        }
+        <div class="spinner" role="status" aria-label="Loading"></div>
     }
     else
     {
-        @foreach (SearchHit hit in _hits)
+
+        @if (_hits.Count == 0)
         {
-            <div class="hit-card" @onclick="() => DownloadHitAsync(hit)" style="cursor:pointer;" tabindex="0" role="button">
-                @if (string.IsNullOrWhiteSpace(hit.PreviewIcon))
-                {
-                    <div class="no-icon"><strong>No&nbsp;Icon</strong></div>
-                }
-                else
-                {
-                    <img src="@GetDataUri(hit.PreviewIcon)" alt="icon" class="icon" />
-                }
-                <div class="hit-body">
-                    <h3>@Highlight(hit.Title)</h3>
-                    @if (!string.IsNullOrWhiteSpace(hit.Content))
-                    {
-                        <p class="snippet">@Highlight(hit.Content ?? string.Empty)</p>
-                    }
-                    @if (hit.Timestamp is not null)
-                    {
-                        <small>@hit.Timestamp.Value.ToLocalTime().ToString("g")</small>
-                    }
-                </div>
+            <p>No results for <strong>@_query</strong>.</p>
+        }
+        else
+        {
+            <div class="results-header" role="status" aria-live="polite">
+                <span class="results-count">@_hits.Count</span>
+                <span class="results-label">result@(_hits.Count == 1 ? "" : "s") for</span>
+                <strong class="results-query">“<mark>@_query</mark>”</strong>
+
             </div>
+            var i = 0;
+            @foreach (var hit in _hits)
+{
+    var ext = GetExt(hit?.Title);
+    var delayMs = 40 + (i * 45); i++;
+
+    <div class="hit-card hit-enter"
+         style="--enter-delay:@($"{delayMs}ms")"
+         @onclick="() => DownloadHitAsync(hit)"
+         tabindex="0"
+         role="button"
+         aria-label="Open @hit?.Title">
+        @if (string.IsNullOrWhiteSpace(hit.PreviewIcon))
+        {
+            <div class="no-icon" aria-hidden="true"><strong>No&nbsp;Icon</strong></div>
+        }
+        else
+        {
+            <img src="@GetDataUri(hit.PreviewIcon)" alt="" class="icon" />
         }
 
-        <div class="pager" hidden="@(_currentPage == 1 && !_hasMore)">
-            <button @onclick="PrevPage" disabled="@(_currentPage == 1)">Previous</button>
-            <span>Page @_currentPage</span>
-            <button @onclick="NextPage" disabled="@(!_hasMore)">Next</button>
+        <div class="hit-body">
+            <h3 class="hit-title">@((MarkupString)Highlight(hit.Title))</h3>
+
+            @if (!string.IsNullOrWhiteSpace(hit.Content))
+            {
+                <p class="snippet">@((MarkupString)Highlight(hit.Content ?? string.Empty))</p>
+            }
+
+            <div class="meta">
+                @if (hit.Timestamp is not null)
+                {
+                    <time>@hit.Timestamp.Value.ToLocalTime().ToString("g")</time>
+                }
+                <span class="badge" data-ext="@ext" aria-label="File type">@ext</span>
+            </div>
         </div>
+    </div>
+}
+
+            <div class="pager" hidden="@(_currentPage == 1 && !_hasMore)">
+                <button @onclick="PrevPage" disabled="@(_currentPage == 1)" aria-label="Previous page">&#8701;</button>
+                <span aria-live="polite">Page @_currentPage</span>
+                <button @onclick="NextPage" disabled="@(!_hasMore)" aria-label="Next page">&#8702;</button>
+            </div>
+        }
     }
 </div>
 
@@ -227,6 +248,17 @@
             await PerformSearchAsync();
             await ScrollTopAsync();
         }
+    }
+
+    private static string GetExt(string? pathOrName)
+    {
+        if (string.IsNullOrWhiteSpace(pathOrName)) return "FILE";
+        try
+        {
+            var ext = System.IO.Path.GetExtension(pathOrName)?.TrimStart('.').ToUpperInvariant();
+            return string.IsNullOrEmpty(ext) ? "FILE" : ext;
+        }
+        catch { return "FILE"; }
     }
 
     private async Task ScrollTopAsync() => await JS.InvokeVoidAsync("window.scrollTo", 0, 0);
