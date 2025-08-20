@@ -215,7 +215,42 @@ volumes:
 ``` 
 You can customize your own compose file [here](https://weaviate.io/developers/weaviate/installation/docker-compose#configurator)
 
-## 5 • Installation
+## 5 • Architecture
+
+```mermaid
+flowchart LR
+    subgraph Sources[Data Sources]
+        FS[File System: PDF Word TXT]
+        IMAP[IMAP Mailbox: Emails + Attachments]
+    end
+
+    subgraph AgentsCluster[Edge Local LAN]
+        Agents[Agents<br/>Local crawlers<br/>Extract text + thumbnails<br/>Config-driven]
+        AgentsAPI[Agents API<br/>ASP.NET 9 Web API<br/>/download endpoint]
+    end
+
+    subgraph Core[Core Services]
+        Server[SearchEngineServer<br/>ASP.NET 9 Minimal API<br/>/upload, /upload-email, /delete, /doc, /search, /files, /download<br/>IndexChannelQueue + Batching Workers]
+        Weaviate[Weaviate<br/>Vector store<br/>text2vec + reranker]
+    end
+
+    subgraph Consumers[Consumers]
+        Client[Blazor Web App<br/>Search hits + download]
+        MCP[MCP Server<br/>LLM Integration]
+    end
+
+    %% Flows
+    FS -->|Files| Agents
+    IMAP -->|Emails| Agents
+    Agents -->|upload_IndexData| Server
+    Agents -->|upload_email_EmailData| Server
+    Server -->|Batch_writes| Weaviate
+    Client -->|search_files_download| Server
+    Server -->|Proxy_download| AgentsAPI
+    MCP -->|Search_API| Server
+```
+
+## 6 • Installation
 Here are the installation steps necessary to set up the SearchEngine. Please do them in the same order they are written in below.
 
 ### Normal
@@ -285,11 +320,11 @@ Agents API:
 - Press `Add Website...`.
 - Specify the name (eg. 'SearchEngineAgentsAPI'), physical path to where you extracted the files and port on which you want to run it.
 
-## 6 • MCP Server
+## 7 • MCP Server
 There is an optional MCP Server included in the code and release. To use it, please add it according to your MCP host's configuration.
 The folder contains the main exe file which is the server, and `appsettings.json`, which point to the SearchEngineServer, please adjust according to your configuration.
 
-## 7 • Development
+## 8 • Development
 
 Publishing projects:
 - *Agents and AgentsAPI* - `dotnet publish --sc` in the SearchEngineAgents folder
