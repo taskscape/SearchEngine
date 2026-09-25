@@ -2,8 +2,8 @@
 
 > **TL;DR**  
 > *Agents* = local crawlers that extract text + thumbnails from files & e-mails and send the results to a server.  
-> *Agents API* = ASP .NET 9 Web API that allows monitored files to be downloaded, exposes a `/download` endpoint.  
-> *Server* = thin ASP .NET 9 Web API that buffers/batches the incoming indices and persists them into **Weaviate**, then exposes a `/search` endpoint.  
+> *Agents API* = ASP .NET 10 Web API that allows monitored files to be downloaded, exposes a `/download` endpoint.  
+> *Server* = thin ASP .NET 10 Web API that buffers/batches the incoming indices and persists them into **Weaviate**, then exposes a `/search` endpoint.  
 > *Client* = Blazor web app that allows for easy search using the server API. Displays a neat list of search hits and allows for download of those files.  
 > *MCP Server* = thin MCP server which allows for LLMs to also use search.
 
@@ -113,8 +113,8 @@ Please set your base urls to your specific addresses for each instance.
 
 ## 4 • Prerequisites
 
-- .NET 9 SDK
-- .NET Core Hosting Bundle 9
+- .NET 10 SDK
+- .NET Core Hosting Bundle 10
 - Docker for Weaviate (optional if using Weaviate Cloud)
 - IIS URL Rewrite
 
@@ -226,11 +226,11 @@ flowchart LR
 
     subgraph AgentsCluster[Edge Local LAN]
         Agents[Agents<br/>Local crawlers<br/>Extract text + thumbnails<br/>Config-driven]
-        AgentsAPI[Agents API<br/>ASP.NET 9 Web API<br/>/download endpoint]
+        AgentsAPI[Agents API<br/>ASP.NET 10 Web API<br/>/download endpoint]
     end
 
     subgraph Core[Core Services]
-        Server[SearchEngineServer<br/>ASP.NET 9 Minimal API<br/>/upload, /upload-email, /delete, /doc, /search, /files, /download<br/>IndexChannelQueue + Batching Workers]
+        Server[SearchEngineServer<br/>ASP.NET 10 Minimal API<br/>/upload, /upload-email, /delete, /doc, /search, /files, /download<br/>IndexChannelQueue + Batching Workers]
         Weaviate[Weaviate<br/>Vector store<br/>text2vec + reranker]
     end
 
